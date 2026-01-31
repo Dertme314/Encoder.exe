@@ -146,7 +146,8 @@ const encoders = {
     ascii: { name: "ASCII", desc: "Decimal code points", fn: (str) => { if (str.length === 0) return ''; let res = '' + str.charCodeAt(0); for (let i = 1; i < str.length; i++) res += ', ' + str.charCodeAt(i); return res; } },
     morse: { name: "Morse Code", desc: "Telecommunication encoding", fn: (str) => { const m = { 'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-', 'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----', ' ': '/', '.': '.-.-.-', ',': '--..--', '?': '..--..', '!': '-.-.--', '@': '.--.-.', '-': '-....-' }; return str.toUpperCase().split('').map(c => m[c] || c).join(' '); } },
     quotedPrintable: { name: "Quoted-Printable", desc: "MIME encoding (=XX)", fn: (str) => str.split('').map(c => { const code = c.charCodeAt(0); return (code >= 33 && code <= 126 && c !== '=') ? c : '=' + code.toString(16).toUpperCase().padStart(2, '0'); }).join('') },
-    bacon: { name: "Bacon Cipher", desc: "Steganography (A/B)", fn: (str) => { const map = {'A':'aaaaa','B':'aaaab','C':'aaaba','D':'aaabb','E':'aabaa','F':'aabab','G':'aabba','H':'aabbb','I':'abaaa','J':'abaab','K':'ababa','L':'ababb','M':'abbaa','N':'abbab','O':'abbba','P':'abbbb','Q':'baaaa','R':'baaab','S':'baaba','T':'baabb','U':'babaa','V':'babab','W':'babba','X':'babbb','Y':'bbaaa','Z':'bbaab'}; return str.toUpperCase().replace(/[A-Z]/g, c => map[c] || c); } }
+    bacon: { name: "Bacon Cipher", desc: "Steganography (A/B)", fn: (str) => { const map = {'A':'aaaaa','B':'aaaab','C':'aaaba','D':'aaabb','E':'aabaa','F':'aabab','G':'aabba','H':'aabbb','I':'abaaa','J':'abaab','K':'ababa','L':'ababb','M':'abbaa','N':'abbab','O':'abbba','P':'abbbb','Q':'baaaa','R':'baaab','S':'baaba','T':'baabb','U':'babaa','V':'babab','W':'babba','X':'babbb','Y':'bbaaa','Z':'bbaab'}; return str.toUpperCase().replace(/[A-Z]/g, c => map[c] || c); } },
+    dert: { name: "Dert Cipher", desc: "Shifted Base-4 (D,e,r,t)", fn: (str) => { const m=['D','e','r','t']; const bytes = new TextEncoder().encode(str); let res = ''; for(let i=0; i<bytes.length; i++) { let b = (bytes[i] + i) % 256; const s = i % 4; res += m[(((b >> 6) & 3) + s) % 4] + m[(((b >> 4) & 3) + s) % 4] + m[(((b >> 2) & 3) + s) % 4] + m[((b & 3) + s) % 4]; } return res; } }
 };
 
 /**
@@ -257,6 +258,7 @@ const decoders = {
     aes: (str, pass) => aesDecrypt(str, pass),
     quotedPrintable: (str) => str.replace(/=([0-9A-F]{2})/gi, (m, p1) => String.fromCharCode(parseInt(p1, 16))),
     bacon: (str) => { const map = {'aaaaa':'A','aaaab':'B','aaaba':'C','aaabb':'D','aabaa':'E','aabab':'F','aabba':'G','aabbb':'H','abaaa':'I','abaab':'J','ababa':'K','ababb':'L','abbaa':'M','abbab':'N','abbba':'O','abbbb':'P','baaaa':'Q','baaab':'R','baaba':'S','baabb':'T','babaa':'U','babab':'V','babba':'W','babbb':'X','bbaaa':'Y','bbaab':'Z'}; return str.toLowerCase().replace(/[ab]{5}/g, m => map[m] || m); },
+    dert: (str) => { const m={'D':0,'e':1,'r':2,'t':3}; const c=str.replace(/[^Dert]/g,''); if(c.length%4!==0) return "Invalid Dert"; const b=new Uint8Array(c.length/4); for(let i=0;i<b.length;i++) { const s=i%4; const idx=i*4; const v1=(m[c[idx]]-s+4)%4; const v2=(m[c[idx+1]]-s+4)%4; const v3=(m[c[idx+2]]-s+4)%4; const v4=(m[c[idx+3]]-s+4)%4; const val=(v1<<6)|(v2<<4)|(v3<<2)|v4; b[i]=(val-i%256+256)%256; } return new TextDecoder().decode(b); },
     default: (str) => str 
 };
 
@@ -400,7 +402,10 @@ function initGrid() {
         card.innerHTML = `
             <div class="flex justify-between items-start mb-3">
                 <div>
-                    <h3 class="font-bold text-gray-200 text-sm">${enc.name} ${currentMode === 'decode' ? '(Decode)' : ''}</h3>
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-bold text-gray-200 text-sm">${enc.name} ${currentMode === 'decode' ? '(Decode)' : ''}</h3>
+                        <span id="score-${key}" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-gray-400"></span>
+                    </div>
                     <p class="text-[10px] text-gray-500 mt-0.5">${enc.desc}</p>
                 </div>
                 <button onclick="event.stopPropagation(); copyToClipboard('result-${key}')" class="text-gray-600 hover:text-white transition-colors p-1 opacity-50 group-hover:opacity-100" title="Copy">
@@ -467,69 +472,87 @@ function renderChainVisualizer() {
 }
 
 /**
+ * Calculates a confidence score for a given decoding result.
+ * @param {string} key - The decoder key.
+ * @param {string} text - The original input text.
+ * @param {string} decoded - The decoded text.
+ * @returns {number} The calculated score.
+ */
+function calculateHeuristicScore(key, text, decoded) {
+    if (!decoded || decoded === "Error" || (typeof decoded === 'string' && decoded.startsWith("Invalid"))) return 0;
+    if (decoded === text) return 0; // No change
+
+    // Check for Image HTML result
+    if (typeof decoded === 'string' && decoded.startsWith('<div class="flex flex-col items-center gap-2"><img')) return 200;
+
+    let score = 0;
+    const len = decoded.length;
+    if (len === 0) return 0;
+
+    // Heuristic 1: Printable characters ratio
+    let printable = 0;
+    for (let i = 0; i < len; i++) {
+        const code = decoded.charCodeAt(i);
+        if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) printable++;
+    }
+    const ratio = printable / len;
+    if (ratio < 0.7) return 0; // Garbage output
+
+    score = ratio * 50;
+
+    // Heuristic 2: Input format matching
+    const t = text.trim();
+    if (key === 'binary' && /^[01\s]+$/.test(t)) score += 100;
+    else if (key === 'hex' && /^(0x)?[0-9A-Fa-f\s]+$/.test(t)) score += 80;
+    else if (key === 'octal' && /^[0-7\s]+$/.test(t)) score += 80;
+    else if (key === 'base64' && /^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0) score += 90;
+    else if (key === 'morse' && /^[\.\-\/\s]+$/.test(t)) score += 150;
+    else if (key === 'htmlEnt' && /&[#a-zA-Z0-9]+;/.test(t)) score += 100;
+    else if (key === 'url' && /%[0-9A-F]{2}/i.test(t)) score += 100;
+    else if (key === 'unicode' && /\\u[0-9A-Fa-f]{4}/.test(t)) score += 100;
+    else if (key === 'tap' && /^([1-5]{2}\s*)+$/.test(t)) score += 100;
+    else if (key === 'jwt' && t.split('.').length === 3) score += 150;
+    else if (key === 'bacon' && /^[ab\s]+$/i.test(t)) score += 100;
+    else if (key === 'quotedPrintable' && /=[0-9A-F]{2}/.test(t)) score += 100;
+    else if (key === 'dert' && /^[Dert\s]+$/.test(t)) score += 100;
+
+    // Heuristic 3: Dictionary Check
+    const lower = decoded.toLowerCase();
+    let wordHits = 0;
+    commonWords.forEach(w => {
+        if (lower.includes(' ' + w + ' ') || lower.startsWith(w + ' ') || lower.endsWith(' ' + w)) wordHits++;
+    });
+    score += Math.min(wordHits * 10, 100);
+
+    return score;
+}
+
+/**
  * Attempts to find the best matching decoder for the given text based on heuristics.
  * @param {string} text - The encoded text.
  * @returns {object|null} The best match object { key, score, decoded }, or null.
  */
-function findBestMatch(text) {
+async function findBestMatch(text) {
     if (!text || text.trim().length === 0) return null;
     
     let best = null;
     let maxScore = 0;
 
-    Object.keys(decoders).forEach(key => {
+    for (const key of Object.keys(decoders)) {
         // Skip transformations that don't imply a specific format
-        if (key === 'reverse' || key === 'rot13' || key === 'atbash' || key === 'leet') return; 
+        if (key === 'reverse' || key === 'rot13' || key === 'atbash' || key === 'leet') continue; 
 
         try {
-            const decoded = decoders[key](text);
-            if (!decoded || decoded === "Error" || (typeof decoded === 'string' && decoded.startsWith("Invalid"))) return;
-            if (decoded === text) return; // No change means likely not a match
-
-            let score = 0;
-            const len = decoded.length;
-            if (len === 0) return;
-
-            // Heuristic 1: Printable characters ratio (is the output readable?)
-            let printable = 0;
-            for (let i = 0; i < len; i++) {
-                const code = decoded.charCodeAt(i);
-                if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) printable++;
-            }
-            const ratio = printable / len;
-            if (ratio < 0.7) return; // Output looks like garbage
-
-            score = ratio * 50;
-
-            // Heuristic 2: Input format matching (Boost score for strict patterns)
-            const t = text.trim();
-            if (key === 'binary' && /^[01\s]+$/.test(t)) score += 100;
-            else if (key === 'hex' && /^(0x)?[0-9A-Fa-f\s]+$/.test(t)) score += 80;
-            else if (key === 'octal' && /^[0-7\s]+$/.test(t)) score += 80;
-            else if (key === 'base64' && /^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0) score += 90;
-            else if (key === 'morse' && /^[\.\-\/\s]+$/.test(t)) score += 150;
-            else if (key === 'htmlEnt' && /&[#a-zA-Z0-9]+;/.test(t)) score += 100;
-            else if (key === 'url' && /%[0-9A-F]{2}/i.test(t)) score += 100;
-            else if (key === 'unicode' && /\\u[0-9A-Fa-f]{4}/.test(t)) score += 100;
-            else if (key === 'tap' && /^([1-5]{2}\s*)+$/.test(t)) score += 100;
-            else if (key === 'jwt' && t.split('.').length === 3) score += 150;
-            else if (key === 'bacon' && /^[ab\s]+$/i.test(t)) score += 100;
-            else if (key === 'quotedPrintable' && /=[0-9A-F]{2}/.test(t)) score += 100;
-
-            // Heuristic 3: Dictionary Check
-            const lower = decoded.toLowerCase();
-            let wordHits = 0;
-            commonWords.forEach(w => {
-                if (lower.includes(' ' + w + ' ') || lower.startsWith(w + ' ') || lower.endsWith(' ' + w)) wordHits++;
-            });
-            score += Math.min(wordHits * 10, 100);
+            const decoded = await decoders[key](text);
+            const score = calculateHeuristicScore(key, text, decoded);
+            if (score <= 0) continue;
 
             if (score > maxScore) {
                 maxScore = score;
                 best = { key, score, decoded };
             }
         } catch (e) {}
-    });
+    }
 
     return maxScore > 60 ? best : null;
 }
@@ -558,7 +581,7 @@ async function processAutoMode() {
     const maxDepth = 10;
     
     while (depth < maxDepth) {
-        const match = findBestMatch(current);
+        const match = await findBestMatch(current);
         
         if (!match) break;
         
@@ -750,11 +773,11 @@ async function processText() {
 
     // Handle Best Match (Decode Mode Only)
     if (currentMode === 'decode') {
-        const best = findBestMatch(text);
+        const best = await findBestMatch(text);
         if (best && best.score > 110) {
             bestMatchContainer.classList.remove('hidden');
             bestMatchContainer.classList.add('flex');
-            bestMatchName.innerText = encoders[best.key].name;
+            bestMatchName.innerHTML = `${encoders[best.key].name} <span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded ml-2 border border-emerald-500/20">${Math.min(Math.round(best.score), 100)}% Conf.</span>`;
             bestMatchResult.innerText = best.decoded;
         } else {
             bestMatchContainer.classList.add('hidden');
@@ -779,14 +802,36 @@ async function processText() {
 
         let outputVal = null;
         const el = document.getElementById(`result-${key}`);
+        const scoreEl = document.getElementById(`score-${key}`);
+
         if (el) {
             if (text.length === 0) {
                 el.innerText = 'Waiting for input...';
                 el.className = 'font-mono text-xs text-gray-600 italic h-20 overflow-y-auto pr-1';
+                if (scoreEl) scoreEl.classList.add('hidden');
             } else {
                 try { 
-                    if (currentMode === 'encode') outputVal = await encoders[key].fn(text); 
-                    else outputVal = decoders[key] ? await decoderskey : "No decoder";
+                    if (currentMode === 'encode') {
+                        outputVal = await encoders[key].fn(text);
+                        if (scoreEl) scoreEl.classList.add('hidden');
+                    } else {
+                        outputVal = decoders[key] ? await decoders[key](text) : "No decoder";
+                        
+                        if (scoreEl && decoders[key]) {
+                            const score = calculateHeuristicScore(key, text, outputVal);
+                            if (score > 0) {
+                                scoreEl.innerText = `${Math.min(Math.round(score), 100)}%`;
+                                scoreEl.classList.remove('hidden', 'bg-emerald-500/20', 'text-emerald-400', 'bg-orange-500/20', 'text-orange-400', 'bg-white/10', 'text-gray-400');
+                                scoreEl.style.display = 'inline-block';
+                                if (score >= 120) scoreEl.classList.add('bg-emerald-500/20', 'text-emerald-400');
+                                else if (score > 80) scoreEl.classList.add('bg-orange-500/20', 'text-orange-400');
+                                else scoreEl.classList.add('bg-white/10', 'text-gray-400');
+                            } else {
+                                scoreEl.classList.add('hidden');
+                                scoreEl.style.display = 'none';
+                            }
+                        } else if (scoreEl) scoreEl.classList.add('hidden');
+                    }
 
                     if (typeof outputVal === 'string' && outputVal.startsWith('<div')) el.innerHTML = outputVal;
                     else el.innerText = outputVal;
