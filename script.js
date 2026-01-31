@@ -8,6 +8,30 @@ const hash = async (algo, str) => {
     return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 };
 
+const crcTable = new Uint32Array(256);
+for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    crcTable[i] = c;
+}
+
+const crc32 = (str) => {
+    const bytes = new TextEncoder().encode(str);
+    let crc = -1;
+    for (let i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ bytes[i]) & 0xFF];
+    return ((crc ^ -1) >>> 0).toString(16).padStart(8, '0');
+};
+
+const adler32 = (str) => {
+    const bytes = new TextEncoder().encode(str);
+    let a = 1, b = 0;
+    for (let i = 0; i < bytes.length; i++) {
+        a = (a + bytes[i]) % 65521;
+        b = (b + a) % 65521;
+    }
+    return (((b << 16) | a) >>> 0).toString(16).padStart(8, '0');
+};
+
 /**
  * Collection of encoder definitions.
  * Each encoder has a name, description, and a function `fn` that takes a string and returns the encoded string.
@@ -26,6 +50,8 @@ const encoders = {
     sha1: { name: "SHA-1", desc: "Secure Hash Algorithm 1", fn: (str) => hash('SHA-1', str) },
     sha256: { name: "SHA-256", desc: "Secure Hash Algorithm 256", fn: (str) => hash('SHA-256', str) },
     sha512: { name: "SHA-512", desc: "Secure Hash Algorithm 512", fn: (str) => hash('SHA-512', str) },
+    crc32: { name: "CRC32", desc: "Cyclic Redundancy Check", fn: (str) => crc32(str) },
+    adler32: { name: "Adler-32", desc: "Checksum algorithm (zlib)", fn: (str) => adler32(str) },
     nato: { name: "NATO Phonetic", desc: "Radiotelephony spelling", fn: (str) => { 
         const n = { 'a': 'alpha', 'b': 'bravo', 'c': 'charlie', 'd': 'delta', 'e': 'echo', 'f': 'foxtrot', 'g': 'golf', 'h': 'hotel', 'i': 'india', 'j': 'juliett', 'k': 'kilo', 'l': 'lima', 'm': 'mike', 'n': 'november', 'o': 'oscar', 'p': 'papa', 'q': 'quebec', 'r': 'romeo', 's': 'sierra', 't': 'tango', 'u': 'uniform', 'v': 'victor', 'w': 'whiskey', 'x': 'x-ray', 'y': 'yankee', 'z': 'zulu', '0': 'Zero', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five', '6': 'Six', '7': 'Seven', '8': 'Eight', '9': 'Nine' }; 
         return str.split('').map(c => {
@@ -128,6 +154,11 @@ const decoders = {
     },
     morse: (str) => { const r = { '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9', '-----': '0', '/': ' ', '.-.-.-': '.', '--..--': ',', '..--..': '?', '-.-.--': '!', '.--.-.': '@', '-....-': '-' }; return str.split(' ').map(c => r[c] || c).join(''); },
     leet: (str) => { const r = { '4': 'a', '8': 'b', '3': 'e', '9': 'g', '1': 'l', '0': 'o', '5': 's', '7': 't', '2': 'z' }; return str.split('').map(c => r[c] || c).join(''); },
+    sha1: (str) => /^[a-f0-9]{40}$/i.test(str.trim()) ? "Format: Valid SHA-1 (Click to Verify)" : "Invalid SHA-1 Format",
+    sha256: (str) => /^[a-f0-9]{64}$/i.test(str.trim()) ? "Format: Valid SHA-256 (Click to Verify)" : "Invalid SHA-256 Format",
+    sha512: (str) => /^[a-f0-9]{128}$/i.test(str.trim()) ? "Format: Valid SHA-512 (Click to Verify)" : "Invalid SHA-512 Format",
+    crc32: (str) => /^[a-f0-9]{8}$/i.test(str.trim()) ? "Format: Valid CRC32 (Click to Verify)" : "Invalid CRC32 Format",
+    adler32: (str) => /^[a-f0-9]{8}$/i.test(str.trim()) ? "Format: Valid Adler-32 (Click to Verify)" : "Invalid Adler-32 Format",
     default: (str) => str 
 };
 
@@ -760,10 +791,24 @@ function openQuickTool(key) {
     const modal = document.getElementById('quick-tool-modal');
     const title = document.getElementById('quick-tool-title');
     const input = document.getElementById('quick-tool-input');
+    const verifySection = document.getElementById('quick-tool-verify-section');
+    const verifyInput = document.getElementById('quick-tool-verify-input');
+    const inputLabel = document.querySelector('label[for="quick-tool-input"]');
     
     title.innerText = `${encoders[key].name} ${currentMode === 'decode' ? '(Decode)' : '(Encode)'}`;
     input.value = inputEl.value; // Pre-fill with main input
     
+    if (currentMode === 'decode' && ['sha1', 'sha256', 'sha512', 'crc32', 'adler32'].includes(key)) {
+        verifySection.classList.remove('hidden');
+        verifyInput.value = '';
+        verifyInput.oninput = updateQuickTool;
+        if(inputLabel) inputLabel.innerText = "Target Hash";
+        title.innerText = `${encoders[key].name} (Verify)`;
+    } else {
+        verifySection.classList.add('hidden');
+        if(inputLabel) inputLabel.innerText = "Input";
+    }
+
     modal.classList.remove('hidden');
     updateQuickTool();
     
@@ -785,12 +830,28 @@ async function updateQuickTool() {
     if (!currentQuickToolKey) return;
     const input = document.getElementById('quick-tool-input').value;
     const outputEl = document.getElementById('quick-tool-output');
+    const verifyInput = document.getElementById('quick-tool-verify-input');
     
     try {
         if (currentMode === 'encode') {
             outputEl.innerText = await encoders[currentQuickToolKey].fn(input);
         } else {
-            outputEl.innerText = decoders[currentQuickToolKey] ? decoders[currentQuickToolKey](input) : "No decoder";
+            if (['sha1', 'sha256', 'sha512', 'crc32', 'adler32'].includes(currentQuickToolKey)) {
+                const target = input.trim().toLowerCase();
+                const source = verifyInput.value;
+                if (!source) {
+                    outputEl.innerHTML = '<span class="text-gray-500 italic">Enter original text to verify against the hash...</span>';
+                } else {
+                    const h = await encoders[currentQuickToolKey].fn(source);
+                    if (h === target) {
+                        outputEl.innerHTML = `<span class="text-emerald-400 font-bold">✅ MATCH CONFIRMED</span>\n\nInput Text: "${source}"\nCalculated: ${h}`;
+                    } else {
+                        outputEl.innerHTML = `<span class="text-red-400 font-bold">❌ NO MATCH</span>\n\nCalculated: ${h}\nTarget:     ${target}`;
+                    }
+                }
+            } else {
+                outputEl.innerText = decoders[currentQuickToolKey] ? decoderscurrentQuickToolKey : "No decoder";
+            }
         }
     } catch (e) {
         outputEl.innerText = "Error";

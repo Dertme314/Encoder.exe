@@ -304,8 +304,12 @@
             </div>
             <div class="p-6 space-y-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-300 mb-2">Input</label>
+                    <label for="quick-tool-input" class="block text-sm font-semibold text-gray-300 mb-2">Input</label>
                     <textarea id="quick-tool-input" class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none h-32 resize-none" placeholder="Type here..."></textarea>
+                </div>
+                <div id="quick-tool-verify-section" class="hidden">
+                    <label class="block text-sm font-semibold text-gray-300 mb-2">Original Text to Verify</label>
+                    <textarea id="quick-tool-verify-input" class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none h-24 resize-none" placeholder="Enter text to hash and compare..."></textarea>
                 </div>
                 <div>
                     <div class="flex justify-between items-center mb-2">
