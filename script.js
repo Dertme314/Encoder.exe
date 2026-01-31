@@ -1,23 +1,45 @@
 /**
+ * Helper for cryptographic hashing using Web Crypto API.
+ */
+const hash = async (algo, str) => {
+    if (!window.crypto || !window.crypto.subtle) return "Secure context required";
+    const msg = new TextEncoder().encode(str);
+    const hashBuffer = await crypto.subtle.digest(algo, msg);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+/**
  * Collection of encoder definitions.
  * Each encoder has a name, description, and a function `fn` that takes a string and returns the encoded string.
  */
 const encoders = {
-    base64: { name: "Base64", desc: "Binary-to-text encoding scheme", fn: (str) => { try { return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode('0x' + p1))); } catch (e) { return "Error"; } } },
-    hex: { name: "Hexadecimal", desc: "Base-16 ASCII representation", fn: (str) => { let r = ''; for (let i = 0; i < str.length; i++) r += str.charCodeAt(i).toString(16).padStart(2, '0') + ' '; return r.trim(); } },
-    octal: { name: "Octal", desc: "Base-8 number system", fn: (str) => { return str.split('').map(c => c.charCodeAt(0).toString(8).padStart(3, '0')).join(' '); } },
-    binary: { name: "Binary", desc: "8-bit binary stream", fn: (str) => { return str.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' '); } },
+    base64: { name: "Base64", desc: "Binary-to-text encoding scheme", fn: (str) => { try { const bytes = new TextEncoder().encode(str); let binary = ''; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]); return btoa(binary); } catch (e) { return "Error"; } } },
+    hex: { name: "Hexadecimal", desc: "Base-16 ASCII representation", fn: (str) => { const bytes = new TextEncoder().encode(str); if (bytes.length === 0) return ''; let res = bytes[0].toString(16).padStart(2, '0'); for (let i = 1; i < bytes.length; i++) res += ' ' + bytes[i].toString(16).padStart(2, '0'); return res; } },
+    octal: { name: "Octal", desc: "Base-8 number system", fn: (str) => { const bytes = new TextEncoder().encode(str); if (bytes.length === 0) return ''; let res = bytes[0].toString(8).padStart(3, '0'); for (let i = 1; i < bytes.length; i++) res += ' ' + bytes[i].toString(8).padStart(3, '0'); return res; } },
+    binary: { name: "Binary", desc: "8-bit binary stream", fn: (str) => { const bytes = new TextEncoder().encode(str); if (bytes.length === 0) return ''; let res = bytes[0].toString(2).padStart(8, '0'); for (let i = 1; i < bytes.length; i++) res += ' ' + bytes[i].toString(2).padStart(8, '0'); return res; } },
     rot13: { name: "ROT13", desc: "Simple letter substitution", fn: (str) => { return str.replace(/[a-zA-Z]/g, function (c) { return String.fromCharCode((c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26); }); } },
     leet: { name: "1337 Speak", desc: "Alphanumeric substitution", fn: (str) => { const m = { 'a': '4', 'b': '8', 'e': '3', 'g': '9', 'l': '1', 'o': '0', 's': '5', 't': '7', 'z': '2', 'A': '4', 'B': '8', 'E': '3', 'G': '9', 'L': '1', 'O': '0', 'S': '5', 'T': '7', 'Z': '2' }; return str.split('').map(c => m[c] || c).join(''); } },
     atbash: { name: "Atbash", desc: "Reversed alphabet cipher", fn: (str) => { return str.replace(/[a-zA-Z]/g, (c) => { const k = c.charCodeAt(0); if (k >= 65 && k <= 90) return String.fromCharCode(90 - (k - 65)); if (k >= 97 && k <= 122) return String.fromCharCode(122 - (k - 97)); return c; }); } },
     rot47: { name: "ROT47", desc: "ASCII shift-47 cipher", fn: (str) => str.replace(/[!-~]/g, function(c) { return String.fromCharCode(33 + ((c.charCodeAt(0) + 14) % 94)); }) },
     unicode: { name: "Unicode Escape", desc: "JS/Java escape sequences", fn: (str) => str.split('').map(c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')).join('') },
     tap: { name: "Tap Code", desc: "Polybius square (C=K)", fn: (str) => { const p = "abcdefghijlmnopqrstuvwxyz"; return str.toLowerCase().split('').map(c => { if(c==='k') c='c'; const i = p.indexOf(c); if(i===-1) return c; return (Math.floor(i/5)+1) + '' + ((i%5)+1); }).join(' '); } },
-    nato: { name: "NATO Phonetic", desc: "Radiotelephony spelling", fn: (str) => { const n = { 'a': 'Alpha', 'b': 'Bravo', 'c': 'Charlie', 'd': 'Delta', 'e': 'Echo', 'f': 'Foxtrot', 'g': 'Golf', 'h': 'Hotel', 'i': 'India', 'j': 'Juliett', 'k': 'Kilo', 'l': 'Lima', 'm': 'Mike', 'n': 'November', 'o': 'Oscar', 'p': 'Papa', 'q': 'Quebec', 'r': 'Romeo', 's': 'Sierra', 't': 'Tango', 'u': 'Uniform', 'v': 'Victor', 'w': 'Whiskey', 'x': 'X-ray', 'y': 'Yankee', 'z': 'Zulu', '0': 'Zero', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five', '6': 'Six', '7': 'Seven', '8': 'Eight', '9': 'Nine' }; return str.toLowerCase().split('').map(c => n[c] ? n[c] : c).join(' '); } },
+    sha1: { name: "SHA-1", desc: "Secure Hash Algorithm 1", fn: (str) => hash('SHA-1', str) },
+    sha256: { name: "SHA-256", desc: "Secure Hash Algorithm 256", fn: (str) => hash('SHA-256', str) },
+    sha512: { name: "SHA-512", desc: "Secure Hash Algorithm 512", fn: (str) => hash('SHA-512', str) },
+    nato: { name: "NATO Phonetic", desc: "Radiotelephony spelling", fn: (str) => { 
+        const n = { 'a': 'alpha', 'b': 'bravo', 'c': 'charlie', 'd': 'delta', 'e': 'echo', 'f': 'foxtrot', 'g': 'golf', 'h': 'hotel', 'i': 'india', 'j': 'juliett', 'k': 'kilo', 'l': 'lima', 'm': 'mike', 'n': 'november', 'o': 'oscar', 'p': 'papa', 'q': 'quebec', 'r': 'romeo', 's': 'sierra', 't': 'tango', 'u': 'uniform', 'v': 'victor', 'w': 'whiskey', 'x': 'x-ray', 'y': 'yankee', 'z': 'zulu', '0': 'Zero', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five', '6': 'Six', '7': 'Seven', '8': 'Eight', '9': 'Nine' }; 
+        return str.split('').map(c => {
+            const lower = c.toLowerCase();
+            if (!n[lower]) return c;
+            const word = n[lower];
+            // Preserve case: A -> ALPHA, a -> alpha
+            return (c === lower) ? word : word.toUpperCase();
+        }).join(' '); 
+    } },
     htmlEnt: { name: "HTML Entities", desc: "Safe characters for web", fn: (str) => { return str.replace(/[\u00A0-\u9999<>\&]/g, (i) => '&#'+i.charCodeAt(0)+';'); } },
     url: { name: "URL Encoded", desc: "Percent-encoding for URLs", fn: (str) => encodeURIComponent(str) },
     reverse: { name: "Reverse", desc: "Reversed character order", fn: (str) => str.split('').reverse().join('') },
-    ascii: { name: "ASCII", desc: "Decimal code points", fn: (str) => str.split('').map(c => c.charCodeAt(0)).join(', ') },
+    ascii: { name: "ASCII", desc: "Decimal code points", fn: (str) => { if (str.length === 0) return ''; let res = '' + str.charCodeAt(0); for (let i = 1; i < str.length; i++) res += ', ' + str.charCodeAt(i); return res; } },
     morse: { name: "Morse Code", desc: "Telecommunication encoding", fn: (str) => { const m = { 'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-', 'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----', ' ': '/', '.': '.-.-.-', ',': '--..--', '?': '..--..', '!': '-.-.--', '@': '.--.-.', '-': '-....-' }; return str.toUpperCase().split('').map(c => m[c] || c).join(' '); } }
 };
 
@@ -28,22 +50,46 @@ const encoders = {
  */
 const decoders = {
     binary: (str) => {
+        if (/[\s,\-]/.test(str)) {
+            const parts = str.split(/[\s,\-]+/).filter(x => /^[01]+$/.test(x));
+            if (parts.length === 0 && str.trim().length > 0) return "Invalid Binary";
+            const bytes = new Uint8Array(parts.length);
+            for (let i = 0; i < parts.length; i++) bytes[i] = parseInt(parts[i], 2);
+            return new TextDecoder().decode(bytes);
+        }
         const clean = str.replace(/[^01]/g, '');
-        let res = '';
-        for (let i = 0; i < clean.length; i += 8) res += String.fromCharCode(parseInt(clean.slice(i, i + 8), 2));
-        return res;
+        if (clean.length === 0 && str.trim().length > 0) return "Invalid Binary";
+        const bytes = new Uint8Array(Math.floor(clean.length / 8));
+        for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(clean.slice(i * 8, (i + 1) * 8), 2);
+        return new TextDecoder().decode(bytes);
     },
     octal: (str) => {
+        if (/[\s,\-]/.test(str)) {
+            const parts = str.split(/[\s,\-]+/).filter(x => /^[0-7]+$/.test(x));
+            if (parts.length === 0 && str.trim().length > 0) return "Invalid Octal";
+            const bytes = new Uint8Array(parts.length);
+            for (let i = 0; i < parts.length; i++) bytes[i] = parseInt(parts[i], 8);
+            return new TextDecoder().decode(bytes);
+        }
         const clean = str.replace(/[^0-7]/g, '');
-        let res = '';
-        for (let i = 0; i < clean.length; i += 3) res += String.fromCharCode(parseInt(clean.slice(i, i + 3), 8));
-        return res;
+        if (clean.length === 0 && str.trim().length > 0) return "Invalid Octal";
+        const bytes = new Uint8Array(Math.floor(clean.length / 3));
+        for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(clean.slice(i * 3, (i + 1) * 3), 8);
+        return new TextDecoder().decode(bytes);
     },
     hex: (str) => {
+        if (/[\s,\-]/.test(str)) {
+            const parts = str.split(/[\s,\-]+/).filter(x => /^(0x)?[0-9A-Fa-f]+$/i.test(x));
+            if (parts.length === 0 && str.trim().length > 0) return "Invalid Hex";
+            const bytes = new Uint8Array(parts.length);
+            for (let i = 0; i < parts.length; i++) bytes[i] = parseInt(parts[i], 16);
+            return new TextDecoder().decode(bytes);
+        }
         const clean = str.replace(/[^0-9A-Fa-f]/g, '');
-        let res = '';
-        for (let i = 0; i < clean.length; i += 2) res += String.fromCharCode(parseInt(clean.slice(i, i + 2), 16));
-        return res;
+        if (clean.length === 0 && str.trim().length > 0) return "Invalid Hex";
+        const bytes = new Uint8Array(Math.floor(clean.length / 2));
+        for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(clean.slice(i * 2, (i + 1) * 2), 16);
+        return new TextDecoder().decode(bytes);
     },
     base64: (str) => { 
         try { 
@@ -65,8 +111,21 @@ const decoders = {
         if (str.length > 500000 && !confirm("Input is larger than 500KB. Decoding HTML Entities may crash the browser. Are you sure you want to proceed?")) return "Aborted by user";
         const txt = document.createElement("textarea"); txt.innerHTML = str; return txt.value; 
     },
-    ascii: (str) => str.split(/[\s,]+/).filter(Boolean).map(c => String.fromCharCode(c)).join(''),
-    nato: (str) => { const r = { 'Alpha': 'a', 'Bravo': 'b', 'Charlie': 'c', 'Delta': 'd', 'Echo': 'e', 'Foxtrot': 'f', 'Golf': 'g', 'Hotel': 'h', 'India': 'i', 'Juliett': 'j', 'Kilo': 'k', 'Lima': 'l', 'Mike': 'm', 'November': 'n', 'Oscar': 'o', 'Papa': 'p', 'Quebec': 'q', 'Romeo': 'r', 'Sierra': 's', 'Tango': 't', 'Uniform': 'u', 'Victor': 'v', 'Whiskey': 'w', 'X-ray': 'x', 'Yankee': 'y', 'Zulu': 'z', 'Zero': '0', 'One': '1', 'Two': '2', 'Three': '3', 'Four': '4', 'Five': '5', 'Six': '6', 'Seven': '7', 'Eight': '8', 'Nine': '9' }; return str.split(' ').map(w => { const k = w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); return r[k] || w; }).join(''); },
+    ascii: (str) => {
+        const parts = str.split(/[\s,]+/).filter(Boolean);
+        if (parts.some(p => isNaN(p))) return "Invalid ASCII";
+        return parts.map(c => String.fromCharCode(c)).join('');
+    },
+    nato: (str) => { 
+        const r = { 'alpha': 'a', 'bravo': 'b', 'charlie': 'c', 'delta': 'd', 'echo': 'e', 'foxtrot': 'f', 'golf': 'g', 'hotel': 'h', 'india': 'i', 'juliett': 'j', 'kilo': 'k', 'lima': 'l', 'mike': 'm', 'november': 'n', 'oscar': 'o', 'papa': 'p', 'quebec': 'q', 'romeo': 'r', 'sierra': 's', 'tango': 't', 'uniform': 'u', 'victor': 'v', 'whiskey': 'w', 'x-ray': 'x', 'yankee': 'y', 'zulu': 'z', 'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9' }; 
+        return str.split(' ').map(w => { 
+            const k = w.toLowerCase();
+            if (!r[k]) return w;
+            const val = r[k];
+            // Heuristic: If word is ALL CAPS or Title Case, return Upper Case char. Else Lower.
+            return (w === w.toUpperCase() || (w[0] === w[0].toUpperCase() && w.length > 1)) ? val.toUpperCase() : val;
+        }).join(''); 
+    },
     morse: (str) => { const r = { '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9', '-----': '0', '/': ' ', '.-.-.-': '.', '--..--': ',', '..--..': '?', '-.-.--': '!', '.--.-.': '@', '-....-': '-' }; return str.split(' ').map(c => r[c] || c).join(''); },
     leet: (str) => { const r = { '4': 'a', '8': 'b', '3': 'e', '9': 'g', '1': 'l', '0': 'o', '5': 's', '7': 't', '2': 'z' }; return str.split('').map(c => r[c] || c).join(''); },
     default: (str) => str 
@@ -176,6 +235,9 @@ function setMode(mode) {
 function initGrid() {
     gridEl.innerHTML = '';
     activeEncoders.forEach(key => {
+        // Skip encoders that don't have a corresponding decoder in Decode Mode (like Hashes)
+        if (currentMode === 'decode' && !decoders[key]) return;
+
         const enc = encoders[key];
         const card = document.createElement('div');
         card.className = 'bg-gray-900/40 backdrop-blur-md rounded-xl border border-white/10 p-5 hover:border-white/20 hover:bg-gray-900/60 transition-all flex flex-col h-full group shadow-lg shadow-black/20 cursor-pointer';
@@ -205,8 +267,12 @@ function initGrid() {
  */
 function updateStats(text) {
     const bytes = new Blob([text]).size;
-    const lines = text.length === 0 ? 0 : text.split(/\r\n|\r|\n/).length;
-    const words = text.length === 0 ? 0 : text.trim().split(/\s+/).length;
+    let lines = 0;
+    if (text.length > 0) {
+        lines = 1;
+        for (let i = 0; i < text.length; i++) if (text[i] === '\n') lines++;
+    }
+    const words = text.length === 0 ? 0 : (text.length > 1000000 ? "N/A" : text.trim().split(/\s+/).length);
     
     statWords.innerText = `${words} words`;
     statLines.innerText = `${lines} lines`;
@@ -343,7 +409,7 @@ async function processText() {
         if (processingTask !== taskId) return; // Cancelled
         
         if (isHeavy) {
-            await new Promise(r => setTimeout(r, 10)); // Yield
+            await new Promise(r => setTimeout(r, 0)); // Yield
             updateProgress((completedSteps / totalSteps) * 100);
         }
 
@@ -355,7 +421,7 @@ async function processText() {
             } else {
                 try { 
                     if (currentMode === 'encode') {
-                        el.innerText = encoders[key].fn(text); 
+                        el.innerText = await encoders[key].fn(text); 
                     } else {
                         el.innerText = decoders[key] ? decoders[key](text) : "No decoder";
                     }
@@ -379,16 +445,35 @@ async function processText() {
 
         for (const key of sequence) {
             if (processingTask !== taskId) return;
+            
+            if (typeof current === 'string' && current.length > 20000000) {
+                chainResultEl.innerText = "Chain output exceeded 20MB limit. Processing aborted to prevent browser crash.";
+                if (isHeavy) updateProgress(100);
+                return;
+            }
+
             if (isHeavy) {
-                await new Promise(r => setTimeout(r, 10));
+                await new Promise(r => setTimeout(r, 0));
                 updateProgress((completedSteps / totalSteps) * 100);
             }
 
-            if (currentMode === 'encode') {
-                if (encoders[key]) current = encoders[key].fn(current);
-            } else {
-                if (decoders[key]) current = decoders[key](current);
+            let next = null;
+            try {
+                if (currentMode === 'encode') {
+                    if (encoders[key]) next = await encoders[key].fn(current);
+                    else next = current;
+                } else {
+                    if (decoders[key]) next = decoders[key](current);
+                    else next = current; // Skip missing decoders (e.g. hashes)
+                }
+            } catch (e) { next = "Error"; }
+
+            if (next && (typeof next === 'string') && (next.startsWith("Invalid") || next === "Error")) {
+                chainResultEl.innerHTML = `<span class="text-red-400 font-bold">Chain Broken at step "${encoders[key]?.name || key}":</span> <span class="text-gray-400">${next}</span><br><span class="text-xs text-gray-500">The output from the previous step was incompatible with this module.</span>`;
+                if (isHeavy) updateProgress(100);
+                return;
             }
+            current = next;
             completedSteps++;
         }
         chainResultEl.innerText = current;
@@ -496,6 +581,30 @@ function renderSettings() {
     // Chain Editor
     const chainList = document.getElementById('chain-editor-list');
     chainList.innerHTML = '';
+
+    const chainToolbar = document.createElement('div');
+    chainToolbar.className = 'flex gap-2 mb-2 pb-2 border-b border-white/10 justify-end';
+    
+    const btnChainAddAll = document.createElement('button');
+    btnChainAddAll.innerText = 'Add All';
+    btnChainAddAll.className = 'text-xs bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 px-2 py-1 rounded transition-colors';
+    btnChainAddAll.onclick = () => { 
+        if (confirm("Adding all encoders creates a very long chain that may produce massive output. Are you sure?")) {
+            chainSequence = Object.keys(encoders); 
+            renderSettings(); 
+            saveSettings(); 
+        }
+    };
+
+    const btnChainClear = document.createElement('button');
+    btnChainClear.innerText = 'Clear';
+    btnChainClear.className = 'text-xs bg-white/5 hover:bg-red-900/30 text-gray-300 hover:text-red-400 border border-white/10 px-2 py-1 rounded transition-colors';
+    btnChainClear.onclick = () => { if(confirm('Clear chain?')) { chainSequence = []; renderSettings(); saveSettings(); } };
+
+    chainToolbar.appendChild(btnChainAddAll);
+    chainToolbar.appendChild(btnChainClear);
+    chainList.appendChild(chainToolbar);
+
     chainSequence.forEach((step, index) => {
         const div = document.createElement('div');
         div.className = 'flex justify-between items-center bg-white/5 p-2 rounded border border-white/10';
@@ -526,18 +635,13 @@ function renderSettings() {
     toolbar.className = 'col-span-full flex gap-2 mb-2 pb-2 border-b border-white/10';
     toolbar.style.gridColumn = '1 / -1';
 
-    const btnAll = document.createElement('button');
-    btnAll.innerText = 'Select All';
-    btnAll.className = 'text-xs bg-accent-600/20 hover:bg-accent-600/40 text-accent-400 border border-accent-500/30 px-2 py-1 rounded transition-colors';
-    btnAll.onclick = () => toggleAllEncoders(true);
+    const allSelected = activeEncoders.length === Object.keys(encoders).length;
+    const btnToggle = document.createElement('button');
+    btnToggle.innerText = allSelected ? 'Deselect All' : 'Select All';
+    btnToggle.className = 'text-xs bg-white/5 hover:bg-white/10 text-gray-400 border border-white/10 px-2 py-1 rounded transition-colors';
+    btnToggle.onclick = () => toggleAllEncoders(!allSelected);
 
-    const btnNone = document.createElement('button');
-    btnNone.innerText = 'Deselect All';
-    btnNone.className = 'text-xs bg-white/5 hover:bg-white/10 text-gray-400 border border-white/10 px-2 py-1 rounded transition-colors';
-    btnNone.onclick = () => toggleAllEncoders(false);
-
-    toolbar.appendChild(btnAll);
-    toolbar.appendChild(btnNone);
+    toolbar.appendChild(btnToggle);
     grid.appendChild(toolbar);
 
     Object.keys(encoders).forEach(key => {
@@ -577,8 +681,8 @@ function removeChainStep(index) {
  * @param {boolean} select - True to select all, false to deselect all.
  */
 function toggleAllEncoders(select) {
-    const checkboxes = document.querySelectorAll('#settings-encoders-grid input[type="checkbox"]');
-    checkboxes.forEach(cb => cb.checked = select);
+    activeEncoders = select ? Object.keys(encoders) : [];
+    renderSettings();
     saveSettings();
 }
 
@@ -677,14 +781,14 @@ function closeQuickTool() {
 /**
  * Updates the output in the quick tool modal based on input.
  */
-function updateQuickTool() {
+async function updateQuickTool() {
     if (!currentQuickToolKey) return;
     const input = document.getElementById('quick-tool-input').value;
     const outputEl = document.getElementById('quick-tool-output');
     
     try {
         if (currentMode === 'encode') {
-            outputEl.innerText = encoders[currentQuickToolKey].fn(input);
+            outputEl.innerText = await encoders[currentQuickToolKey].fn(input);
         } else {
             outputEl.innerText = decoders[currentQuickToolKey] ? decoders[currentQuickToolKey](input) : "No decoder";
         }
