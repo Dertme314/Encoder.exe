@@ -313,6 +313,10 @@ function safeJSONParse(key, fallback) {
 }
 
 let activeEncoders = safeJSONParse('omni_active_encoders', Object.keys(encoders));
+// Ensure new encoders are added to the list if missing from localStorage
+Object.keys(encoders).forEach(key => {
+    if (!activeEncoders.includes(key)) activeEncoders.push(key);
+});
 let chainSequence = safeJSONParse('omni_chain_sequence', ['base64', 'reverse', 'rot13', 'hex', 'base64', 'octal', 'binary']);
 let currentMode = localStorage.getItem('omni_mode') || 'encode';
 
@@ -1079,6 +1083,13 @@ function renderSettings() {
     btnToggle.onclick = () => toggleAllEncoders(!allSelected);
 
     toolbar.appendChild(btnToggle);
+
+    const btnReset = document.createElement('button');
+    btnReset.innerText = 'Factory Reset';
+    btnReset.className = 'text-xs bg-white/5 hover:bg-red-900/30 text-gray-400 hover:text-red-400 border border-white/10 px-2 py-1 rounded transition-colors ml-auto';
+    btnReset.onclick = resetSettings;
+    toolbar.appendChild(btnReset);
+
     grid.appendChild(toolbar);
 
     Object.keys(encoders).forEach(key => {
