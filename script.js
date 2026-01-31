@@ -272,6 +272,10 @@ const bestMatchContainer = document.getElementById('best-match-container');
 const bestMatchName = document.getElementById('best-match-name');
 const bestMatchResult = document.getElementById('best-match-result');
 
+// Global API hooks for automation (Headless Browser Access)
+window.omniResults = null;
+window.omniComplete = false;
+
 let processingTask = 0;
 const SLOW_THRESHOLD = 50000; // 50KB triggers slow mode
 const progressContainer = document.getElementById('progress-container');
@@ -538,6 +542,9 @@ async function processAutoMode() {
     const stepsContainer = document.getElementById('auto-steps');
     const resultEl = document.getElementById('auto-result');
     
+    window.omniComplete = false;
+    window.omniResults = { mode: 'auto', steps: [], final: null };
+
     stepsContainer.innerHTML = '';
     resultEl.innerText = '';
     
@@ -575,6 +582,12 @@ async function processAutoMode() {
             </span>
         `;
         stepsContainer.appendChild(div);
+
+        window.omniResults.steps.push({
+            tool: encoders[match.key].name,
+            confidence: match.score,
+            output: match.decoded
+        });
         
         current = match.decoded;
         depth++;
@@ -587,6 +600,10 @@ async function processAutoMode() {
     // Render HTML if the result is an image preview, otherwise text
     if (typeof current === 'string' && current.startsWith('<div')) resultEl.innerHTML = current;
     else resultEl.innerText = current;
+
+    window.omniResults.final = current;
+    window.omniComplete = true;
+    console.log("OmniEncoder Result:", window.omniResults);
 }
 
 /**
@@ -598,6 +615,9 @@ function processAnalyze() {
     const entropyDesc = document.getElementById('entropy-desc');
     const freqChart = document.getElementById('freq-chart');
     const typeEl = document.getElementById('analyze-type');
+
+    window.omniComplete = false;
+    window.omniResults = { mode: 'analyze', entropy: 0, type: 'Unknown', frequency: {} };
 
     if (!text) {
         entropyEl.innerText = "0.00";
@@ -631,6 +651,10 @@ function processAnalyze() {
     else if (/^([0-9A-Fa-f]{2}\s*)+$/.test(t)) type = "Hex String (Potential)";
     typeEl.innerText = `Type: ${type}`;
 
+    window.omniResults.entropy = entropy;
+    window.omniResults.type = type;
+    window.omniResults.frequency = freqs;
+
     // Frequency Chart
     const sorted = Object.entries(freqs).sort((a, b) => b[1] - a[1]).slice(0, 10);
     freqChart.innerHTML = '';
@@ -643,6 +667,8 @@ function processAnalyze() {
     });
 
     renderHexDump(text);
+    window.omniComplete = true;
+    console.log("OmniEncoder Result:", window.omniResults);
 }
 
 /**
@@ -696,6 +722,9 @@ async function processText() {
     const taskId = Date.now();
     processingTask = taskId;
     
+    window.omniComplete = false;
+    window.omniResults = { mode: currentMode, input: text, outputs: {}, chain: null };
+
     updateStats(text);
     
     const isHeavy = text.length > SLOW_THRESHOLD;
@@ -748,6 +777,7 @@ async function processText() {
             updateProgress((completedSteps / totalSteps) * 100);
         }
 
+        let outputVal = null;
         const el = document.getElementById(`result-${key}`);
         if (el) {
             if (text.length === 0) {
@@ -755,16 +785,21 @@ async function processText() {
                 el.className = 'font-mono text-xs text-gray-600 italic h-20 overflow-y-auto pr-1';
             } else {
                 try { 
-                    if (currentMode === 'encode') {
-                        el.innerText = await encoders[key].fn(text); 
-                    } else {
-                        const res = decoders[key] ? await decoders[key](text) : "No decoder";
-                        if (typeof res === 'string' && res.startsWith('<div')) el.innerHTML = res;
-                        else el.innerText = res;
-                    }
-                } catch(e) { el.innerText = "Error"; }
+                    if (currentMode === 'encode') outputVal = await encoders[key].fn(text); 
+                    else outputVal = decoders[key] ? await decoderskey : "No decoder";
+
+                    if (typeof outputVal === 'string' && outputVal.startsWith('<div')) el.innerHTML = outputVal;
+                    else el.innerText = outputVal;
+                } catch(e) { 
+                    outputVal = "Error";
+                    el.innerText = "Error"; 
+                }
                 el.className = 'font-mono text-xs text-gray-300 break-all h-20 overflow-y-auto pr-1';
             }
+        }
+        
+        if (window.omniResults && window.omniResults.outputs) {
+            window.omniResults.outputs[key] = outputVal;
         }
         completedSteps++;
     }
@@ -772,6 +807,8 @@ async function processText() {
     // Chain Logic
     if (text.length === 0) {
         chainResultEl.innerHTML = '<span class="text-gray-600 italic">Start typing to generate chain...</span>';
+        window.omniComplete = true;
+        console.log("OmniEncoder Result:", window.omniResults);
         if (isHeavy) updateProgress(100);
         return;
     }
@@ -789,6 +826,8 @@ async function processText() {
             
             if (typeof current === 'string' && current.length > 20000000) {
                 chainResultEl.innerText = "Chain output exceeded 20MB limit. Processing aborted to prevent browser crash.";
+                window.omniComplete = true;
+                console.log("OmniEncoder Result:", window.omniResults);
                 if (isHeavy) updateProgress(100);
                 return;
             }
@@ -815,6 +854,8 @@ async function processText() {
                     badges[stepIndex].classList.add('bg-red-500/20', 'text-red-400', 'border-red-500/50', 'animate-pulse');
                 }
                 chainResultEl.innerHTML = `<span class="text-red-400 font-bold">Chain Broken at step "${encoders[key]?.name || key}":</span> <span class="text-gray-400">${next}</span><br><span class="text-xs text-gray-500">The output from the previous step was incompatible with this module.</span>`;
+                window.omniComplete = true;
+                console.log("OmniEncoder Result:", window.omniResults);
                 if (isHeavy) updateProgress(100);
                 return;
             }
@@ -825,9 +866,12 @@ async function processText() {
         
         if (typeof current === 'string' && current.startsWith('<div')) chainResultEl.innerHTML = current;
         else chainResultEl.innerText = current;
+        window.omniResults.chain = current;
     } catch (e) {
         chainResultEl.innerText = "Error in chain calculation.";
     }
+    window.omniComplete = true;
+    console.log("OmniEncoder Result:", window.omniResults);
     if (isHeavy) updateProgress(100);
 }
 
@@ -1281,7 +1325,7 @@ window.addEventListener('DOMContentLoaded', () => {
     
     if (params.has('mode')) {
         const m = params.get('mode').toLowerCase();
-        if (m === 'encode' || m === 'decode') currentMode = m;
+        if (['encode', 'decode', 'auto', 'analyze'].includes(m)) currentMode = m;
     }
 
     if (params.has('encoders')) {
