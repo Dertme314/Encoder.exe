@@ -33,6 +33,64 @@ const adler32 = (str) => {
 };
 
 /**
+ * AES-GCM Implementation with PBKDF2 Key Derivation.
+ */
+const getAesKey = async (password, salt) => {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
+    );
+};
+
+const aesEncrypt = async (str, password = "OmniEncoder") => {
+    try {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await getAesKey(password, salt);
+        const enc = new TextEncoder().encode(str);
+        const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, enc);
+        
+        // Combine Salt + IV + Ciphertext and Base64 encode
+        const combined = new Uint8Array(salt.length + iv.length + cipher.byteLength);
+        combined.set(salt);
+        combined.set(iv, salt.length);
+        combined.set(new Uint8Array(cipher), salt.length + iv.length);
+        return btoa(String.fromCharCode(...combined));
+    } catch (e) { return "Encryption Error"; }
+};
+
+const aesDecrypt = async (str, password = "OmniEncoder") => {
+    try {
+        const raw = Uint8Array.from(atob(str), c => c.charCodeAt(0));
+        const salt = raw.slice(0, 16);
+        const iv = raw.slice(16, 28);
+        const cipher = raw.slice(28);
+        const key = await getAesKey(password, salt);
+        const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, cipher);
+        return new TextDecoder().decode(dec);
+    } catch (e) { return "Invalid Password or Data"; }
+};
+
+/**
+ * HMAC-SHA256 Signing for JWTs.
+ */
+const hmacSign = async (key, data) => {
+    if (!window.crypto || !window.crypto.subtle) return "Secure Context Required";
+    try {
+        const enc = new TextEncoder();
+        const cryptoKey = await crypto.subtle.importKey("raw", enc.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const signature = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(data));
+        return btoa(String.fromCharCode(...new Uint8Array(signature)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    } catch (e) { return "Signing Error"; }
+};
+
+/**
  * Collection of encoder definitions.
  * Each encoder has a name, description, and a function `fn` that takes a string and returns the encoded string.
  */
@@ -47,11 +105,31 @@ const encoders = {
     rot47: { name: "ROT47", desc: "ASCII shift-47 cipher", fn: (str) => str.replace(/[!-~]/g, function(c) { return String.fromCharCode(33 + ((c.charCodeAt(0) + 14) % 94)); }) },
     unicode: { name: "Unicode Escape", desc: "JS/Java escape sequences", fn: (str) => str.split('').map(c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')).join('') },
     tap: { name: "Tap Code", desc: "Polybius square (C=K)", fn: (str) => { const p = "abcdefghijlmnopqrstuvwxyz"; return str.toLowerCase().split('').map(c => { if(c==='k') c='c'; const i = p.indexOf(c); if(i===-1) return c; return (Math.floor(i/5)+1) + '' + ((i%5)+1); }).join(' '); } },
-    sha1: { name: "SHA-1", desc: "Secure Hash Algorithm 1", fn: (str) => hash('SHA-1', str) },
-    sha256: { name: "SHA-256", desc: "Secure Hash Algorithm 256", fn: (str) => hash('SHA-256', str) },
-    sha512: { name: "SHA-512", desc: "Secure Hash Algorithm 512", fn: (str) => hash('SHA-512', str) },
-    crc32: { name: "CRC32", desc: "Cyclic Redundancy Check", fn: (str) => crc32(str) },
-    adler32: { name: "Adler-32", desc: "Checksum algorithm (zlib)", fn: (str) => adler32(str) },
+    sha1: { name: "SHA-1", desc: "Secure Hash Algorithm 1", fn: (str) => hash('SHA-1', str), reversible: false },
+    sha256: { name: "SHA-256", desc: "Secure Hash Algorithm 256", fn: (str) => hash('SHA-256', str), reversible: false },
+    sha512: { name: "SHA-512", desc: "Secure Hash Algorithm 512", fn: (str) => hash('SHA-512', str), reversible: false },
+    crc32: { name: "CRC32", desc: "Cyclic Redundancy Check", fn: (str) => crc32(str), reversible: false },
+    adler32: { name: "Adler-32", desc: "Checksum algorithm (zlib)", fn: (str) => adler32(str), reversible: false },
+    base32: { name: "Base32", desc: "RFC 4648 Base32 encoding", fn: (str) => { const a = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; const bytes = new TextEncoder().encode(str); let output = ""; let val = 0; let bits = 0; for (let i = 0; i < bytes.length; i++) { val = (val << 8) | bytes[i]; bits += 8; while (bits >= 5) { output += a[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits > 0) output += a[(val << (5 - bits)) & 31]; while (output.length % 8 !== 0) output += "="; return output; } },
+    vigenere: { name: "Vigenère Cipher", desc: "Polyalphabetic substitution", fn: (str, key) => { if (!key) return "Key required"; const k = key.toUpperCase().replace(/[^A-Z]/g, ''); if (!k) return str; let ki = 0; return str.replace(/[a-zA-Z]/g, c => { const base = c >= 'a' ? 97 : 65; const shift = k.charCodeAt(ki++ % k.length) - 65; return String.fromCharCode(((c.charCodeAt(0) - base + shift) % 26) + base); }); } },
+    jwt: { name: "JWT Builder", desc: "Sign JSON as HS256 Token", fn: async (str, key) => {
+        const k = key || "OmniEncoder";
+        try {
+            let payload;
+            try { payload = JSON.parse(str); } 
+            catch (e) { payload = { sub: "user", data: str, iat: Math.floor(Date.now()/1000) }; }
+            
+            const header = { alg: "HS256", typ: "JWT" };
+            const b64 = (obj) => {
+                const bytes = new TextEncoder().encode(JSON.stringify(obj));
+                let bin = ''; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+                return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            };
+            const unsigned = `${b64(header)}.${b64(payload)}`;
+            return `${unsigned}.${await hmacSign(k, unsigned)}`;
+        } catch (e) { return "Error generating JWT"; }
+    } },
+    aes: { name: "AES-GCM", desc: "256-bit Encryption (PBKDF2)", fn: (str, pass) => aesEncrypt(str, pass) },
     nato: { name: "NATO Phonetic", desc: "Radiotelephony spelling", fn: (str) => { 
         const n = { 'a': 'alpha', 'b': 'bravo', 'c': 'charlie', 'd': 'delta', 'e': 'echo', 'f': 'foxtrot', 'g': 'golf', 'h': 'hotel', 'i': 'india', 'j': 'juliett', 'k': 'kilo', 'l': 'lima', 'm': 'mike', 'n': 'november', 'o': 'oscar', 'p': 'papa', 'q': 'quebec', 'r': 'romeo', 's': 'sierra', 't': 'tango', 'u': 'uniform', 'v': 'victor', 'w': 'whiskey', 'x': 'x-ray', 'y': 'yankee', 'z': 'zulu', '0': 'Zero', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five', '6': 'Six', '7': 'Seven', '8': 'Eight', '9': 'Nine' }; 
         return str.split('').map(c => {
@@ -66,7 +144,9 @@ const encoders = {
     url: { name: "URL Encoded", desc: "Percent-encoding for URLs", fn: (str) => encodeURIComponent(str) },
     reverse: { name: "Reverse", desc: "Reversed character order", fn: (str) => str.split('').reverse().join('') },
     ascii: { name: "ASCII", desc: "Decimal code points", fn: (str) => { if (str.length === 0) return ''; let res = '' + str.charCodeAt(0); for (let i = 1; i < str.length; i++) res += ', ' + str.charCodeAt(i); return res; } },
-    morse: { name: "Morse Code", desc: "Telecommunication encoding", fn: (str) => { const m = { 'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-', 'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----', ' ': '/', '.': '.-.-.-', ',': '--..--', '?': '..--..', '!': '-.-.--', '@': '.--.-.', '-': '-....-' }; return str.toUpperCase().split('').map(c => m[c] || c).join(' '); } }
+    morse: { name: "Morse Code", desc: "Telecommunication encoding", fn: (str) => { const m = { 'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-', 'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----', ' ': '/', '.': '.-.-.-', ',': '--..--', '?': '..--..', '!': '-.-.--', '@': '.--.-.', '-': '-....-' }; return str.toUpperCase().split('').map(c => m[c] || c).join(' '); } },
+    quotedPrintable: { name: "Quoted-Printable", desc: "MIME encoding (=XX)", fn: (str) => str.split('').map(c => { const code = c.charCodeAt(0); return (code >= 33 && code <= 126 && c !== '=') ? c : '=' + code.toString(16).toUpperCase().padStart(2, '0'); }).join('') },
+    bacon: { name: "Bacon Cipher", desc: "Steganography (A/B)", fn: (str) => { const map = {'A':'aaaaa','B':'aaaab','C':'aaaba','D':'aaabb','E':'aabaa','F':'aabab','G':'aabba','H':'aabbb','I':'abaaa','J':'abaab','K':'ababa','L':'ababb','M':'abbaa','N':'abbab','O':'abbba','P':'abbbb','Q':'baaaa','R':'baaab','S':'baaba','T':'baabb','U':'babaa','V':'babab','W':'babba','X':'babbb','Y':'bbaaa','Z':'bbaab'}; return str.toUpperCase().replace(/[A-Z]/g, c => map[c] || c); } }
 };
 
 /**
@@ -120,6 +200,18 @@ const decoders = {
     base64: (str) => { 
         try { 
             const bin = atob(str);
+            
+            // Simple Magic Number check for Images (PNG, JPG, GIF)
+            const len = bin.length;
+            if (len > 4) {
+                const c1 = bin.charCodeAt(0), c2 = bin.charCodeAt(1), c3 = bin.charCodeAt(2);
+                // PNG (89 50 4E), JPG (FF D8), GIF (47 49 46)
+                if ((c1===0x89 && c2===0x50 && c3===0x4E) || (c1===0xFF && c2===0xD8) || (c1===0x47 && c2===0x49 && c3===0x46)) {
+                    // Return an HTML string that the UI will render
+                    return `<div class="flex flex-col items-center gap-2"><img src="data:image/auto;base64,${str}" class="max-h-48 rounded border border-white/20 shadow-lg" /><span class="text-[10px] text-gray-500">Image Detected</span></div>`;
+                }
+            }
+
             const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
             return new TextDecoder().decode(bytes);
         } catch (e) { 
@@ -159,6 +251,12 @@ const decoders = {
     sha512: (str) => /^[a-f0-9]{128}$/i.test(str.trim()) ? "Format: Valid SHA-512 (Click to Verify)" : "Invalid SHA-512 Format",
     crc32: (str) => /^[a-f0-9]{8}$/i.test(str.trim()) ? "Format: Valid CRC32 (Click to Verify)" : "Invalid CRC32 Format",
     adler32: (str) => /^[a-f0-9]{8}$/i.test(str.trim()) ? "Format: Valid Adler-32 (Click to Verify)" : "Invalid Adler-32 Format",
+    base32: (str) => { const a = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; let clean = str.toUpperCase().replace(/[^A-Z2-7]/g, ""); if (clean.length === 0) return "Invalid Base32"; let output = []; let val = 0; let bits = 0; for (let i = 0; i < clean.length; i++) { val = (val << 5) | a.indexOf(clean[i]); bits += 5; if (bits >= 8) { output.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new TextDecoder().decode(new Uint8Array(output)); },
+    vigenere: (str, key) => { if (!key) return "Key required"; const k = key.toUpperCase().replace(/[^A-Z]/g, ''); if (!k) return str; let ki = 0; return str.replace(/[a-zA-Z]/g, c => { const base = c >= 'a' ? 97 : 65; const shift = k.charCodeAt(ki++ % k.length) - 65; return String.fromCharCode(((c.charCodeAt(0) - base - shift + 26) % 26) + base); }); },
+    jwt: (str) => { try { const parts = str.split('.'); if (parts.length !== 3) return "Invalid JWT format"; const fix = s => s.replace(/-/g, '+').replace(/_/g, '/').padEnd(s.length + (4 - s.length % 4) % 4, '='); const header = JSON.parse(atob(fix(parts[0]))); const payload = JSON.parse(atob(fix(parts[1]))); return JSON.stringify({ header, payload }, null, 2); } catch (e) { return "Invalid JWT"; } },
+    aes: (str, pass) => aesDecrypt(str, pass),
+    quotedPrintable: (str) => str.replace(/=([0-9A-F]{2})/gi, (m, p1) => String.fromCharCode(parseInt(p1, 16))),
+    bacon: (str) => { const map = {'aaaaa':'A','aaaab':'B','aaaba':'C','aaabb':'D','aabaa':'E','aabab':'F','aabba':'G','aabbb':'H','abaaa':'I','abaab':'J','ababa':'K','ababb':'L','abbaa':'M','abbab':'N','abbba':'O','abbbb':'P','baaaa':'Q','baaab':'R','baaba':'S','baabb':'T','babaa':'U','babab':'V','babba':'W','babbb':'X','bbaaa':'Y','bbaab':'Z'}; return str.toLowerCase().replace(/[ab]{5}/g, m => map[m] || m); },
     default: (str) => str 
 };
 
@@ -179,6 +277,8 @@ const SLOW_THRESHOLD = 50000; // 50KB triggers slow mode
 const progressContainer = document.getElementById('progress-container');
 const progressBar = document.getElementById('progress-bar');
 const heavyWarning = document.getElementById('heavy-load-warning');
+
+const commonWords = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me"];
 
 /**
  * Updates the progress bar UI.
@@ -222,24 +322,44 @@ function setMode(mode) {
     // Update Tabs
     const tabEncode = document.getElementById('tab-encode');
     const tabDecode = document.getElementById('tab-decode');
+    const tabAuto = document.getElementById('tab-auto');
+    const tabAnalyze = document.getElementById('tab-analyze');
     
     const activeClass = "px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-accent-600/80 backdrop-blur-md text-white shadow-lg shadow-accent-500/20 border border-accent-500/50";
     const inactiveClass = "px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10";
 
     const appSections = ['input-section', 'tool-chain', 'encoders-section'];
     const docSection = document.getElementById('doc-section');
+    const autoSection = document.getElementById('auto-section');
+    const analyzeSection = document.getElementById('analyze-section');
+
+    docSection.classList.add('hidden');
+    autoSection.classList.add('hidden');
+    analyzeSection.classList.add('hidden');
+    appSections.forEach(id => document.getElementById(id).classList.add('hidden'));
+    bestMatchContainer.classList.add('hidden');
+    bestMatchContainer.classList.remove('flex');
+
+    tabEncode.className = inactiveClass;
+    tabDecode.className = inactiveClass;
+    tabAuto.className = inactiveClass;
+    tabAnalyze.className = inactiveClass;
 
     if (mode === 'docs') {
-        tabEncode.className = inactiveClass;
-        tabDecode.className = inactiveClass;
-        
-        appSections.forEach(id => document.getElementById(id).classList.add('hidden'));
-        bestMatchContainer.classList.add('hidden');
-        bestMatchContainer.classList.remove('flex');
-        
         docSection.classList.remove('hidden');
+    } else if (mode === 'auto') {
+        tabAuto.className = activeClass;
+        document.getElementById('input-section').classList.remove('hidden');
+        autoSection.classList.remove('hidden');
+        document.querySelector('label[for="input-text"]').innerText = "Input Data Stream";
+        processText();
+    } else if (mode === 'analyze') {
+        tabAnalyze.className = activeClass;
+        document.getElementById('input-section').classList.remove('hidden');
+        analyzeSection.classList.remove('hidden');
+        document.querySelector('label[for="input-text"]').innerText = "Input Data Stream";
+        processAnalyze();
     } else {
-        docSection.classList.add('hidden');
         appSections.forEach(id => document.getElementById(id).classList.remove('hidden'));
 
         if (mode === 'encode') {
@@ -331,8 +451,13 @@ function renderChainVisualizer() {
         chainVisualizerEl.appendChild(arrow);
 
         const badge = document.createElement('span');
-        badge.className = `px-1.5 py-0.5 rounded bg-white/10 border border-white/5 text-gray-400 ${index === chainSequence.length - 1 ? 'text-accent-500 font-bold' : ''}`;
+        badge.className = `chain-step-badge px-1.5 py-0.5 rounded bg-white/10 border border-white/5 text-gray-400 cursor-pointer hover:bg-red-900/30 hover:text-red-400 hover:border-red-500/30 transition-colors select-none ${index === sequence.length - 1 ? 'text-accent-500 font-bold' : ''}`;
         badge.innerText = encoders[key] ? encoders[key].name.substring(0, 4) : key;
+        badge.title = "Click to remove step";
+        
+        const originalIndex = currentMode === 'encode' ? index : (chainSequence.length - 1 - index);
+        badge.onclick = () => removeChainStep(originalIndex);
+        
         chainVisualizerEl.appendChild(badge);
     });
 }
@@ -340,12 +465,12 @@ function renderChainVisualizer() {
 /**
  * Attempts to find the best matching decoder for the given text based on heuristics.
  * @param {string} text - The encoded text.
- * @returns {string|null} The key of the best matching decoder, or null if no good match found.
+ * @returns {object|null} The best match object { key, score, decoded }, or null.
  */
 function findBestMatch(text) {
     if (!text || text.trim().length === 0) return null;
     
-    let bestKey = null;
+    let best = null;
     let maxScore = 0;
 
     Object.keys(decoders).forEach(key => {
@@ -354,7 +479,7 @@ function findBestMatch(text) {
 
         try {
             const decoded = decoders[key](text);
-            if (!decoded || decoded === "Error" || decoded === "Invalid Base64") return;
+            if (!decoded || decoded === "Error" || (typeof decoded === 'string' && decoded.startsWith("Invalid"))) return;
             if (decoded === text) return; // No change means likely not a match
 
             let score = 0;
@@ -365,33 +490,200 @@ function findBestMatch(text) {
             let printable = 0;
             for (let i = 0; i < len; i++) {
                 const code = decoded.charCodeAt(i);
-                if (code >= 32 && code <= 126) printable++;
+                if ((code >= 32 && code <= 126) || code === 10 || code === 13 || code === 9) printable++;
             }
             const ratio = printable / len;
-            if (ratio < 0.8) return; // Output looks like garbage
+            if (ratio < 0.7) return; // Output looks like garbage
 
-            score = ratio * 100;
+            score = ratio * 50;
 
             // Heuristic 2: Input format matching (Boost score for strict patterns)
             const t = text.trim();
             if (key === 'binary' && /^[01\s]+$/.test(t)) score += 100;
-            if (key === 'hex' && /^[0-9A-Fa-f\s]+$/.test(t)) score += 80;
-            if (key === 'octal' && /^[0-7\s]+$/.test(t)) score += 80;
-            if (key === 'base64' && /^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0) score += 90;
-            if (key === 'morse' && /^[\.\-\/\s]+$/.test(t)) score += 150;
-            if (key === 'htmlEnt' && /&[#a-zA-Z0-9]+;/.test(t)) score += 100;
-            if (key === 'url' && /%[0-9A-F]{2}/i.test(t)) score += 100;
-            if (key === 'unicode' && /\\u[0-9A-Fa-f]{4}/.test(t)) score += 100;
-            if (key === 'tap' && /^([1-5]{2}\s*)+$/.test(t)) score += 100;
+            else if (key === 'hex' && /^(0x)?[0-9A-Fa-f\s]+$/.test(t)) score += 80;
+            else if (key === 'octal' && /^[0-7\s]+$/.test(t)) score += 80;
+            else if (key === 'base64' && /^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0) score += 90;
+            else if (key === 'morse' && /^[\.\-\/\s]+$/.test(t)) score += 150;
+            else if (key === 'htmlEnt' && /&[#a-zA-Z0-9]+;/.test(t)) score += 100;
+            else if (key === 'url' && /%[0-9A-F]{2}/i.test(t)) score += 100;
+            else if (key === 'unicode' && /\\u[0-9A-Fa-f]{4}/.test(t)) score += 100;
+            else if (key === 'tap' && /^([1-5]{2}\s*)+$/.test(t)) score += 100;
+            else if (key === 'jwt' && t.split('.').length === 3) score += 150;
+            else if (key === 'bacon' && /^[ab\s]+$/i.test(t)) score += 100;
+            else if (key === 'quotedPrintable' && /=[0-9A-F]{2}/.test(t)) score += 100;
+
+            // Heuristic 3: Dictionary Check
+            const lower = decoded.toLowerCase();
+            let wordHits = 0;
+            commonWords.forEach(w => {
+                if (lower.includes(' ' + w + ' ') || lower.startsWith(w + ' ') || lower.endsWith(' ' + w)) wordHits++;
+            });
+            score += Math.min(wordHits * 10, 100);
 
             if (score > maxScore) {
                 maxScore = score;
-                bestKey = key;
+                best = { key, score, decoded };
             }
         } catch (e) {}
     });
 
-    return maxScore > 110 ? bestKey : null; // Threshold to avoid false positives on plain text
+    return maxScore > 60 ? best : null;
+}
+
+/**
+ * Runs the recursive auto-detection logic.
+ */
+async function processAutoMode() {
+    const text = inputEl.value;
+    const stepsContainer = document.getElementById('auto-steps');
+    const resultEl = document.getElementById('auto-result');
+    
+    stepsContainer.innerHTML = '';
+    resultEl.innerText = '';
+    
+    if (!text) {
+        resultEl.innerText = 'Waiting for input...';
+        return;
+    }
+
+    let current = text;
+    let depth = 0;
+    const maxDepth = 10;
+    
+    while (depth < maxDepth) {
+        const match = findBestMatch(current);
+        
+        if (!match) break;
+        
+        // Render Step
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between bg-white/5 p-3 rounded border border-white/10';
+        
+        let badgeColor = 'bg-red-500/20 text-red-400 border-red-500/20';
+        if (match.score >= 120) badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20';
+        else if (match.score > 80) badgeColor = 'bg-orange-500/20 text-orange-400 border-orange-500/20';
+        
+        const displayScore = Math.min(Math.round(match.score), 100);
+        
+        div.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="text-gray-400 font-mono text-xs">${depth + 1}.</span>
+                <span class="font-bold text-gray-200">${encoders[match.key].name}</span>
+            </div>
+            <span class="text-xs font-mono px-2 py-1 rounded border ${badgeColor}">
+                ${displayScore}% Conf.
+            </span>
+        `;
+        stepsContainer.appendChild(div);
+        
+        current = match.decoded;
+        depth++;
+    }
+    
+    if (depth === 0) {
+        stepsContainer.innerHTML = '<div class="text-gray-500 italic text-sm">No encoding pattern detected.</div>';
+    }
+    
+    // Render HTML if the result is an image preview, otherwise text
+    if (typeof current === 'string' && current.startsWith('<div')) resultEl.innerHTML = current;
+    else resultEl.innerText = current;
+}
+
+/**
+ * Calculates and displays Entropy and Frequency analysis.
+ */
+function processAnalyze() {
+    const text = inputEl.value;
+    const entropyEl = document.getElementById('entropy-value');
+    const entropyDesc = document.getElementById('entropy-desc');
+    const freqChart = document.getElementById('freq-chart');
+    const typeEl = document.getElementById('analyze-type');
+
+    if (!text) {
+        entropyEl.innerText = "0.00";
+        freqChart.innerHTML = '<div class="text-gray-500 italic">Waiting for input...</div>';
+        renderHexDump('');
+        return;
+    }
+
+    // Entropy Calculation
+    const len = text.length;
+    const freqs = {};
+    for (let char of text) freqs[char] = (freqs[char] || 0) + 1;
+    
+    let entropy = 0;
+    Object.values(freqs).forEach(count => {
+        const p = count / len;
+        entropy -= p * Math.log2(p);
+    });
+    
+    entropyEl.innerText = entropy.toFixed(2);
+    if (entropy > 7.5) entropyDesc.innerText = "High Randomness (Encrypted/Compressed)";
+    else if (entropy > 5) entropyDesc.innerText = "Moderate Randomness (Code/Base64)";
+    else entropyDesc.innerText = "Low Randomness (Natural Text)";
+
+    // Type Detection
+    let type = "Unknown / Raw Text";
+    const t = text.trim();
+    if (t.startsWith('{') && t.endsWith('}')) type = "JSON (Potential)";
+    else if (t.startsWith('<') && t.endsWith('>')) type = "XML / HTML (Potential)";
+    else if (/^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0 && !t.includes(' ')) type = "Base64 (Potential)";
+    else if (/^([0-9A-Fa-f]{2}\s*)+$/.test(t)) type = "Hex String (Potential)";
+    typeEl.innerText = `Type: ${type}`;
+
+    // Frequency Chart
+    const sorted = Object.entries(freqs).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    freqChart.innerHTML = '';
+    const maxVal = sorted[0][1];
+    
+    sorted.forEach(([char, count]) => {
+        const percent = (count / maxVal) * 100;
+        const label = char === ' ' ? 'SPACE' : (char === '\n' ? '\\n' : char);
+        freqChart.innerHTML += `<div class="flex items-center gap-2 text-xs"><div class="w-8 text-right font-mono text-gray-400">${label}</div><div class="flex-grow bg-white/5 rounded-full h-2 overflow-hidden"><div class="bg-accent-500 h-full" style="width: ${percent}%"></div></div><div class="w-8 text-gray-500">${count}</div></div>`;
+    });
+
+    renderHexDump(text);
+}
+
+/**
+ * Renders a Hex Dump of the input text.
+ * @param {string} text 
+ */
+function renderHexDump(text) {
+    const hexDumpEl = document.getElementById('hex-dump');
+    if (!text) {
+        hexDumpEl.innerText = '';
+        return;
+    }
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    let output = '';
+    const len = data.length;
+    const limit = Math.min(len, 4096); // Limit for performance
+    
+    for (let i = 0; i < limit; i += 16) {
+        const offset = i.toString(16).padStart(8, '0');
+        const chunk = data.slice(i, i + 16);
+        
+        let hex = '';
+        let ascii = '';
+        
+        for (let j = 0; j < 16; j++) {
+            if (j < chunk.length) {
+                const byte = chunk[j];
+                hex += byte.toString(16).padStart(2, '0') + ' ';
+                ascii += (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : '.';
+            } else {
+                hex += '   ';
+            }
+            if (j === 7) hex += ' ';
+        }
+        output += `${offset}  ${hex} |${ascii}|\n`;
+    }
+    
+    if (len > limit) output += `... (${len - limit} bytes truncated)`;
+    hexDumpEl.innerText = output;
 }
 
 /**
@@ -415,14 +707,26 @@ async function processText() {
         progressContainer.classList.add('hidden');
     }
 
+    if (currentMode === 'auto') {
+        await processAutoMode();
+        if (isHeavy) updateProgress(100);
+        return;
+    }
+
+    if (currentMode === 'analyze') {
+        processAnalyze();
+        if (isHeavy) updateProgress(100);
+        return;
+    }
+
     // Handle Best Match (Decode Mode Only)
     if (currentMode === 'decode') {
         const best = findBestMatch(text);
-        if (best) {
+        if (best && best.score > 110) {
             bestMatchContainer.classList.remove('hidden');
             bestMatchContainer.classList.add('flex');
-            bestMatchName.innerText = encoders[best].name;
-            bestMatchResult.innerText = decoders[best](text);
+            bestMatchName.innerText = encoders[best.key].name;
+            bestMatchResult.innerText = best.decoded;
         } else {
             bestMatchContainer.classList.add('hidden');
             bestMatchContainer.classList.remove('flex');
@@ -454,7 +758,9 @@ async function processText() {
                     if (currentMode === 'encode') {
                         el.innerText = await encoders[key].fn(text); 
                     } else {
-                        el.innerText = decoders[key] ? decoders[key](text) : "No decoder";
+                        const res = decoders[key] ? await decoders[key](text) : "No decoder";
+                        if (typeof res === 'string' && res.startsWith('<div')) el.innerHTML = res;
+                        else el.innerText = res;
                     }
                 } catch(e) { el.innerText = "Error"; }
                 el.className = 'font-mono text-xs text-gray-300 break-all h-20 overflow-y-auto pr-1';
@@ -473,7 +779,11 @@ async function processText() {
     try {
         let current = text;
         const sequence = currentMode === 'encode' ? chainSequence : [...chainSequence].reverse();
+        
+        const badges = document.querySelectorAll('.chain-step-badge');
+        badges.forEach(b => b.classList.remove('bg-red-500/20', 'text-red-400', 'border-red-500/50', 'animate-pulse'));
 
+        let stepIndex = 0;
         for (const key of sequence) {
             if (processingTask !== taskId) return;
             
@@ -494,20 +804,27 @@ async function processText() {
                     if (encoders[key]) next = await encoders[key].fn(current);
                     else next = current;
                 } else {
-                    if (decoders[key]) next = decoders[key](current);
+                    if (decoders[key]) next = await decoders[key](current);
                     else next = current; // Skip missing decoders (e.g. hashes)
                 }
             } catch (e) { next = "Error"; }
 
             if (next && (typeof next === 'string') && (next.startsWith("Invalid") || next === "Error")) {
+                if (badges[stepIndex]) {
+                    badges[stepIndex].classList.remove('text-gray-400', 'text-accent-500');
+                    badges[stepIndex].classList.add('bg-red-500/20', 'text-red-400', 'border-red-500/50', 'animate-pulse');
+                }
                 chainResultEl.innerHTML = `<span class="text-red-400 font-bold">Chain Broken at step "${encoders[key]?.name || key}":</span> <span class="text-gray-400">${next}</span><br><span class="text-xs text-gray-500">The output from the previous step was incompatible with this module.</span>`;
                 if (isHeavy) updateProgress(100);
                 return;
             }
             current = next;
             completedSteps++;
+            stepIndex++;
         }
-        chainResultEl.innerText = current;
+        
+        if (typeof current === 'string' && current.startsWith('<div')) chainResultEl.innerHTML = current;
+        else chainResultEl.innerText = current;
     } catch (e) {
         chainResultEl.innerText = "Error in chain calculation.";
     }
@@ -621,7 +938,7 @@ function renderSettings() {
     btnChainAddAll.className = 'text-xs bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 px-2 py-1 rounded transition-colors';
     btnChainAddAll.onclick = () => { 
         if (confirm("Adding all encoders creates a very long chain that may produce massive output. Are you sure?")) {
-            chainSequence = Object.keys(encoders); 
+            chainSequence = Object.keys(encoders).filter(k => encoders[k].reversible !== false); 
             renderSettings(); 
             saveSettings(); 
         }
@@ -775,6 +1092,14 @@ dropZone.addEventListener('drop', (e) => {
     if (files.length > 0) {
         const file = files[0];
         const reader = new FileReader();
+        
+        // Feature 1: Image Support
+        if (file.type.startsWith('image/')) {
+            reader.onload = (e) => { inputEl.value = e.target.result.split(',')[1]; processText(); }; // Strip data:image... prefix
+            reader.readAsDataURL(file);
+            return;
+        }
+
         reader.onload = (e) => { inputEl.value = e.target.result; processText(); };
         reader.readAsText(file);
     }
@@ -793,7 +1118,10 @@ function openQuickTool(key) {
     const input = document.getElementById('quick-tool-input');
     const verifySection = document.getElementById('quick-tool-verify-section');
     const verifyInput = document.getElementById('quick-tool-verify-input');
+    const passwordSection = document.getElementById('quick-tool-password-section');
+    const passwordInput = document.getElementById('quick-tool-password');
     const inputLabel = document.querySelector('label[for="quick-tool-input"]');
+    const diffBtn = document.getElementById('btn-diff-toggle');
     
     title.innerText = `${encoders[key].name} ${currentMode === 'decode' ? '(Decode)' : '(Encode)'}`;
     input.value = inputEl.value; // Pre-fill with main input
@@ -809,10 +1137,20 @@ function openQuickTool(key) {
         if(inputLabel) inputLabel.innerText = "Input";
     }
 
+    if (key === 'aes' || key === 'vigenere' || key === 'jwt') {
+        passwordSection.classList.remove('hidden');
+        passwordInput.value = '';
+    } else {
+        passwordSection.classList.add('hidden');
+    }
+
+    diffBtn.classList.remove('text-accent-500'); // Reset diff toggle
+    diffBtn.classList.add('text-gray-500');
     modal.classList.remove('hidden');
     updateQuickTool();
     
     input.oninput = updateQuickTool;
+    passwordInput.oninput = updateQuickTool;
 }
 
 /**
@@ -824,6 +1162,31 @@ function closeQuickTool() {
 }
 
 /**
+ * Toggles the Diff View in the Quick Tool.
+ */
+async function toggleDiffView() {
+    const btn = document.getElementById('btn-diff-toggle');
+    const outputEl = document.getElementById('quick-tool-output');
+    const input = document.getElementById('quick-tool-input').value;
+    
+    if (btn.classList.contains('text-accent-500')) {
+        // Turn off
+        btn.classList.remove('text-accent-500');
+        btn.classList.add('text-gray-500');
+        updateQuickTool();
+    } else {
+        // Turn on
+        btn.classList.add('text-accent-500');
+        btn.classList.remove('text-gray-500');
+        
+        // Simple Diff Logic
+        const output = outputEl.innerText;
+        // Just show side-by-side comparison for now as a simple diff view
+        outputEl.innerHTML = `<div class="grid grid-cols-2 gap-4 text-xs"><div class="border-r border-white/10 pr-2"><div class="font-bold text-gray-500 mb-1">Input</div>${input}</div><div class="pl-2"><div class="font-bold text-gray-500 mb-1">Output</div>${output}</div></div>`;
+    }
+}
+
+/**
  * Updates the output in the quick tool modal based on input.
  */
 async function updateQuickTool() {
@@ -831,10 +1194,13 @@ async function updateQuickTool() {
     const input = document.getElementById('quick-tool-input').value;
     const outputEl = document.getElementById('quick-tool-output');
     const verifyInput = document.getElementById('quick-tool-verify-input');
+    const password = document.getElementById('quick-tool-password').value || "OmniEncoder";
+    const diffBtn = document.getElementById('btn-diff-toggle');
+    if (diffBtn.classList.contains('text-accent-500')) return; // Don't overwrite if Diff is active
     
     try {
         if (currentMode === 'encode') {
-            outputEl.innerText = await encoders[currentQuickToolKey].fn(input);
+            outputEl.innerText = await encoders[currentQuickToolKey].fn(input, password);
         } else {
             if (['sha1', 'sha256', 'sha512', 'crc32', 'adler32'].includes(currentQuickToolKey)) {
                 const target = input.trim().toLowerCase();
@@ -850,7 +1216,9 @@ async function updateQuickTool() {
                     }
                 }
             } else {
-                outputEl.innerText = decoders[currentQuickToolKey] ? decoderscurrentQuickToolKey : "No decoder";
+                const res = decoders[currentQuickToolKey] ? await decoders[currentQuickToolKey](input, password) : "No decoder";
+                if (typeof res === 'string' && res.startsWith('<div')) outputEl.innerHTML = res;
+                else outputEl.innerText = res;
             }
         }
     } catch (e) {
@@ -896,6 +1264,13 @@ function setupFileUpload() {
         btn.className = "text-xs bg-white/5 hover:bg-white/10 text-gray-400 border border-white/10 px-3 py-1 rounded-full transition-all cursor-pointer inline-flex items-center hover:text-white hover:border-white/30";
         btn.onclick = (e) => { e.preventDefault(); fileInput.click(); };
         label.parentNode.insertBefore(btn, label.nextSibling);
+
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.innerHTML = 'Clear';
+        clearBtn.className = "ml-2 text-xs bg-white/5 hover:bg-red-900/30 text-gray-400 border border-white/10 px-3 py-1 rounded-full transition-all cursor-pointer inline-flex items-center hover:text-red-400 hover:border-red-500/30";
+        clearBtn.onclick = () => { inputEl.value = ''; processText(); };
+        label.parentNode.insertBefore(clearBtn, btn.nextSibling);
     }
 }
 
