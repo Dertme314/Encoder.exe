@@ -404,19 +404,27 @@ function initGrid() {
         card.className = 'bg-gray-900/40 backdrop-blur-md rounded-xl border border-white/10 p-5 hover:border-white/20 hover:bg-gray-900/60 transition-all flex flex-col h-full group shadow-lg shadow-black/20 cursor-pointer';
         card.onclick = () => openQuickTool(key);
         card.innerHTML = `
-            <div class="flex justify-between items-start mb-3">
-                <div>
-                    <div class="flex items-center gap-2">
-                        <h3 class="font-bold text-gray-200 text-sm">${enc.name} ${currentMode === 'decode' ? '(Decode)' : ''}</h3>
-                        <span id="score-${key}" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-gray-400"></span>
-                    </div>
-                    <p class="text-[10px] text-gray-500 mt-0.5">${enc.desc}</p>
+            <div class="flex justify-between items-center mb-2 card-header">
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <h3 class="font-bold text-gray-200 text-sm truncate select-none">${enc.name} ${currentMode === 'decode' ? '(Decode)' : ''}</h3>
+                    <span id="score-${key}" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-gray-400"></span>
                 </div>
-                <button onclick="event.stopPropagation(); copyToClipboard('result-${key}')" class="text-gray-600 hover:text-white transition-colors p-1 opacity-50 group-hover:opacity-100" title="Copy">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
-                </button>
+                <div class="flex gap-0.5 ml-2 shrink-0 window-controls">
+                    <button onclick="event.stopPropagation();" class="w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
+                        <div class="w-2 h-0.5 bg-current"></div>
+                    </button>
+                    <button onclick="event.stopPropagation();" class="w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
+                        <div class="w-2 h-2 border border-current"></div>
+                    </button>
+                    <button onclick="event.stopPropagation();" class="w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
             </div>
-            <div class="flex-grow bg-black/40 rounded border border-white/5 p-3 mt-1 shadow-inner">
+            <div id="card-body-${key}" class="flex-grow bg-black/40 rounded border border-white/5 p-3 mt-1 shadow-inner relative group/body transition-all">
+                <button onclick="event.stopPropagation(); copyToClipboard('result-${key}')" class="absolute top-1 right-1 text-gray-500 hover:text-white p-1 opacity-0 group-hover/body:opacity-100 transition-opacity z-10 bg-black/50 rounded" title="Copy">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+                </button>
                 <div id="result-${key}" class="font-mono text-xs text-gray-400 break-all h-20 overflow-y-auto pr-1"></div>
             </div>
         `;
@@ -519,6 +527,7 @@ function calculateHeuristicScore(key, text, decoded) {
     else if (key === 'bacon' && /^[ab\s]+$/i.test(t)) score += 100;
     else if (key === 'quotedPrintable' && /=[0-9A-F]{2}/.test(t)) score += 100;
     else if (key === 'dert' && /^[Dert\s]+$/.test(t)) score += 100;
+    else if (key === 'nato' && /^((alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliett|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango|uniform|victor|whiskey|x-ray|yankee|zulu|ze-ro|wun|too|tree|fow-er|fife|six|sev-en|ait|niner)\s*)+$/i.test(t)) score += 100;
 
     // Heuristic 3: Dictionary Check
     const lower = decoded.toLowerCase();
@@ -676,6 +685,7 @@ function processAnalyze() {
     else if (t.startsWith('<') && t.endsWith('>')) type = "XML / HTML (Potential)";
     else if (/^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0 && !t.includes(' ')) type = "Base64 (Potential)";
     else if (/^([0-9A-Fa-f]{2}\s*)+$/.test(t)) type = "Hex String (Potential)";
+    else if (/^[Dert\s]+$/.test(t)) type = "Dert Cipher (Potential)";
     typeEl.innerText = `Type: ${type}`;
 
     window.omniResults.entropy = entropy;
@@ -1016,12 +1026,116 @@ function toggleSettings() {
 }
 
 /**
+ * Applies the selected visual theme to the application.
+ * @param {string} theme - The theme identifier ('default' or 'winxp').
+ */
+function applyTheme(theme) {
+    localStorage.setItem('omni_theme', theme);
+    let style = document.getElementById('omni-theme-style');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'omni-theme-style';
+        document.head.appendChild(style);
+    }
+
+    if (theme === 'winxp') {
+        style.innerHTML = `
+            body { 
+                background: url('theme-1.png') no-repeat center center fixed !important; 
+                background-size: cover !important; 
+                font-family: 'Tahoma', 'Verdana', sans-serif !important; 
+                font-size: 11px !important;
+            }
+            
+            /* Main Windows / Cards / Modals */
+            .bg-gray-900, .bg-gray-800, .backdrop-blur-md, .bg-gray-900\\/40, .bg-gray-900\\/60, .bg-gray-900\\/30 { 
+                background-color: #ECE9D8 !important; 
+                color: black !important; 
+                backdrop-filter: none !important; 
+                border: 3px solid #0054E3 !important; 
+                border-radius: 8px 8px 0 0 !important; 
+                box-shadow: 4px 4px 12px rgba(0,0,0,0.4) !important; 
+            }
+            
+            /* Title Bars */
+            .bg-gray-900\\/60 > div:first-child, .bg-gray-900\\/40 > div:first-child, .bg-gray-800 > div:first-child, .bg-gray-900 > div:first-child { 
+                background: linear-gradient(to bottom, #0058EE 0%, #3593FF 4%, #288EFF 18%, #127dff 20%, #0369fc 39%, #0262ee 40%, #0057e5 100%) !important; 
+                border-radius: 5px 5px 0 0 !important; 
+                border-bottom: 1px solid #003c74 !important; 
+                padding: 8px 12px !important;
+                margin: -3px -3px 10px -3px !important;
+            }
+
+            .text-gray-200, .text-gray-300, .text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700 { color: #000 !important; }
+            .text-accent-500 { color: #d53c00 !important; }
+            .border-white\\/10, .border-white\\/20, .border-white\\/5 { border-color: #0054e3 !important; }
+            
+            /* Inputs & Content Areas */
+            .bg-white\\/5, .bg-white\\/10, .bg-black\\/40 { background-color: #fff !important; border: 2px solid #7f9db9 !important; color: black !important; border-radius: 0 !important; }
+            input, textarea, select { background-color: #fff !important; color: #000 !important; border: 2px solid #7f9db9 !important; border-radius: 0 !important; font-family: 'Tahoma', sans-serif !important; }
+            
+            /* Buttons */
+            button { background: linear-gradient(180deg, #fcfdfe 0%, #f4f3ee 100%) !important; border: 1px solid #003c74 !important; color: black !important; border-radius: 3px !important; font-family: 'Tahoma', sans-serif !important; }
+            button:hover { background: linear-gradient(180deg, #f4f3ee 0%, #fcfdfe 100%) !important; box-shadow: inset 0 0 2px 2px #f8b334 !important; }
+            
+            /* Active Tabs / Primary Buttons */
+            .bg-accent-600\\/80 { background: linear-gradient(180deg, #3e8fff 0%, #245edb 100%) !important; border: 1px solid #003c74 !important; color: white !important; font-weight: bold !important; text-shadow: 1px 1px 0 rgba(0,0,0,0.3); border-radius: 3px !important; }
+            
+            /* Text Overrides in Title Bars */
+            .bg-gray-900\\/60 > div:first-child h2, .bg-gray-900\\/40 > div:first-child h3, .bg-gray-900 > div:first-child h3, .bg-gray-800 > div:first-child h2 { color: white !important; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.5); font-family: 'Tahoma', sans-serif !important; }
+            .bg-gray-900\\/40 > div:first-child p { color: #cce5ff !important; }
+            .bg-gray-900\\/40 > div:first-child button, .bg-gray-900\\/60 > div:first-child button { background: none !important; border: none !important; color: white !important; box-shadow: none !important; }
+            
+            /* Window Controls Specifics */
+            .window-controls { gap: 2px !important; margin-right: -4px !important; margin-top: -4px !important; }
+            .window-controls button {
+                width: 18px !important; height: 18px !important;
+                border-radius: 3px !important;
+                border: 1px solid white !important;
+                box-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important;
+                padding: 0 !important;
+                opacity: 1 !important;
+            }
+            
+            /* Minimize & Maximize */
+            .window-controls button[title="Minimize"], .window-controls button[title="Maximize"] { background: linear-gradient(180deg, #fff 0%, #ece9d8 100%) !important; color: black !important; }
+            .window-controls button[title="Minimize"] div { background-color: black !important; width: 6px !important; height: 2px !important; margin-top: 6px !important; }
+            .window-controls button[title="Maximize"] div { border-color: black !important; border-width: 1px !important; width: 10px !important; height: 9px !important; border-top-width: 2px !important; }
+
+            /* Close Button (Heuristic for X icon) */
+            button:has(svg path[d*="M6 18L18 6M6 6l12 12"]) {
+                background: linear-gradient(180deg, #e05252 0%, #b00000 100%) !important;
+                border: 1px solid #fff !important;
+                box-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important;
+                width: 20px !important; height: 20px !important;
+                display: flex !important; align-items: center !important; justify-content: center !important;
+            }
+            button:has(svg path[d*="M6 18L18 6M6 6l12 12"]) svg { color: white !important; }
+        `;
+    } else {
+        style.innerHTML = '';
+    }
+}
+
+/**
  * Renders the settings modal content (chain editor, encoder toggles).
  */
 function renderSettings() {
     // Chain Editor
     const chainList = document.getElementById('chain-editor-list');
     chainList.innerHTML = '';
+
+    const themeDiv = document.createElement('div');
+    themeDiv.className = 'flex justify-between items-center bg-white/5 p-2 rounded border border-white/10 mb-4';
+    themeDiv.innerHTML = `
+        <span class="text-sm text-gray-300 font-bold">Theme</span>
+        <select onchange="applyTheme(this.value)" class="bg-black/40 border border-white/10 rounded text-xs text-gray-300 px-2 py-1 outline-none">
+            <option value="default">Default (Cyber)</option>
+            <option value="winxp">Windows XP</option>
+        </select>
+    `;
+    themeDiv.querySelector('select').value = localStorage.getItem('omni_theme') || 'default';
+    chainList.appendChild(themeDiv);
 
     const chainToolbar = document.createElement('div');
     chainToolbar.className = 'flex gap-2 mb-2 pb-2 border-b border-white/10 justify-end';
@@ -1376,6 +1490,7 @@ function setupFileUpload() {
 
 inputEl.addEventListener('input', debounce(processText, 300));
 window.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.lang = 'en';
     setupFileUpload();
     const params = new URLSearchParams(window.location.search);
     
@@ -1394,5 +1509,6 @@ window.addEventListener('DOMContentLoaded', () => {
         inputEl.value = params.get('text');
     }
 
+    applyTheme(localStorage.getItem('omni_theme') || 'default');
     setMode(currentMode);
 });
