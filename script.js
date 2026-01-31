@@ -10,6 +10,9 @@ const encoders = {
     rot13: { name: "ROT13", desc: "Simple letter substitution", fn: (str) => { return str.replace(/[a-zA-Z]/g, function (c) { return String.fromCharCode((c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26); }); } },
     leet: { name: "1337 Speak", desc: "Alphanumeric substitution", fn: (str) => { const m = { 'a': '4', 'b': '8', 'e': '3', 'g': '9', 'l': '1', 'o': '0', 's': '5', 't': '7', 'z': '2', 'A': '4', 'B': '8', 'E': '3', 'G': '9', 'L': '1', 'O': '0', 'S': '5', 'T': '7', 'Z': '2' }; return str.split('').map(c => m[c] || c).join(''); } },
     atbash: { name: "Atbash", desc: "Reversed alphabet cipher", fn: (str) => { return str.replace(/[a-zA-Z]/g, (c) => { const k = c.charCodeAt(0); if (k >= 65 && k <= 90) return String.fromCharCode(90 - (k - 65)); if (k >= 97 && k <= 122) return String.fromCharCode(122 - (k - 97)); return c; }); } },
+    rot47: { name: "ROT47", desc: "ASCII shift-47 cipher", fn: (str) => str.replace(/[!-~]/g, function(c) { return String.fromCharCode(33 + ((c.charCodeAt(0) + 14) % 94)); }) },
+    unicode: { name: "Unicode Escape", desc: "JS/Java escape sequences", fn: (str) => str.split('').map(c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')).join('') },
+    tap: { name: "Tap Code", desc: "Polybius square (C=K)", fn: (str) => { const p = "abcdefghijlmnopqrstuvwxyz"; return str.toLowerCase().split('').map(c => { if(c==='k') c='c'; const i = p.indexOf(c); if(i===-1) return c; return (Math.floor(i/5)+1) + '' + ((i%5)+1); }).join(' '); } },
     nato: { name: "NATO Phonetic", desc: "Radiotelephony spelling", fn: (str) => { const n = { 'a': 'Alpha', 'b': 'Bravo', 'c': 'Charlie', 'd': 'Delta', 'e': 'Echo', 'f': 'Foxtrot', 'g': 'Golf', 'h': 'Hotel', 'i': 'India', 'j': 'Juliett', 'k': 'Kilo', 'l': 'Lima', 'm': 'Mike', 'n': 'November', 'o': 'Oscar', 'p': 'Papa', 'q': 'Quebec', 'r': 'Romeo', 's': 'Sierra', 't': 'Tango', 'u': 'Uniform', 'v': 'Victor', 'w': 'Whiskey', 'x': 'X-ray', 'y': 'Yankee', 'z': 'Zulu', '0': 'Zero', '1': 'One', '2': 'Two', '3': 'Three', '4': 'Four', '5': 'Five', '6': 'Six', '7': 'Seven', '8': 'Eight', '9': 'Nine' }; return str.toLowerCase().split('').map(c => n[c] ? n[c] : c).join(' '); } },
     htmlEnt: { name: "HTML Entities", desc: "Safe characters for web", fn: (str) => { return str.replace(/[\u00A0-\u9999<>\&]/g, (i) => '&#'+i.charCodeAt(0)+';'); } },
     url: { name: "URL Encoded", desc: "Percent-encoding for URLs", fn: (str) => encodeURIComponent(str) },
@@ -25,27 +28,44 @@ const encoders = {
  */
 const decoders = {
     binary: (str) => {
-        const clean = str.replace(/[^01 ]/g, '');
-        const arr = clean.includes(' ') ? clean.split(' ') : (clean.match(/.{1,8}/g) || []);
-        return arr.map(bin => String.fromCharCode(parseInt(bin, 2))).join('');
+        const clean = str.replace(/[^01]/g, '');
+        let res = '';
+        for (let i = 0; i < clean.length; i += 8) res += String.fromCharCode(parseInt(clean.slice(i, i + 8), 2));
+        return res;
     },
     octal: (str) => {
-        const clean = str.replace(/[^0-7 ]/g, '');
-        const arr = clean.includes(' ') ? clean.split(' ') : (clean.match(/.{1,3}/g) || []);
-        return arr.map(oct => String.fromCharCode(parseInt(oct, 8))).join('');
+        const clean = str.replace(/[^0-7]/g, '');
+        let res = '';
+        for (let i = 0; i < clean.length; i += 3) res += String.fromCharCode(parseInt(clean.slice(i, i + 3), 8));
+        return res;
     },
     hex: (str) => {
-        const clean = str.replace(/[^0-9A-Fa-f ]/g, '');
-        const arr = clean.includes(' ') ? clean.split(' ') : (clean.match(/.{1,2}/g) || []);
-        return arr.map(hex => String.fromCharCode(parseInt(hex, 16))).join('');
+        const clean = str.replace(/[^0-9A-Fa-f]/g, '');
+        let res = '';
+        for (let i = 0; i < clean.length; i += 2) res += String.fromCharCode(parseInt(clean.slice(i, i + 2), 16));
+        return res;
     },
-    base64: (str) => { try { return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch (e) { try { return atob(str); } catch(e2) { return "Invalid Base64"; } } },
+    base64: (str) => { 
+        try { 
+            const bin = atob(str);
+            const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+            return new TextDecoder().decode(bytes);
+        } catch (e) { 
+            try { return atob(str); } catch(e2) { return "Invalid Base64"; } 
+        } 
+    },
+    rot47: (str) => encoders.rot47.fn(str),
+    unicode: (str) => str.replace(/\\u([0-9a-fA-F]{4})/g, (m, p1) => String.fromCharCode(parseInt(p1, 16))),
+    tap: (str) => { const p = "abcdefghijlmnopqrstuvwxyz"; return str.split(' ').map(c => { if(c.length!==2 || isNaN(c)) return c; const r = parseInt(c[0])-1; const k = parseInt(c[1])-1; if(r<0||r>4||k<0||k>4) return c; return p[r*5+k]; }).join(''); },
     rot13: (str) => encoders.rot13.fn(str),
     reverse: (str) => encoders.reverse.fn(str),
     url: (str) => decodeURIComponent(str),
     atbash: (str) => encoders.atbash.fn(str),
-    htmlEnt: (str) => { const txt = document.createElement("textarea"); txt.innerHTML = str; return txt.value; },
-    ascii: (str) => str.split(', ').map(c => String.fromCharCode(c)).join(''),
+    htmlEnt: (str) => { 
+        if (str.length > 500000 && !confirm("Input is larger than 500KB. Decoding HTML Entities may crash the browser. Are you sure you want to proceed?")) return "Aborted by user";
+        const txt = document.createElement("textarea"); txt.innerHTML = str; return txt.value; 
+    },
+    ascii: (str) => str.split(/[\s,]+/).filter(Boolean).map(c => String.fromCharCode(c)).join(''),
     nato: (str) => { const r = { 'Alpha': 'a', 'Bravo': 'b', 'Charlie': 'c', 'Delta': 'd', 'Echo': 'e', 'Foxtrot': 'f', 'Golf': 'g', 'Hotel': 'h', 'India': 'i', 'Juliett': 'j', 'Kilo': 'k', 'Lima': 'l', 'Mike': 'm', 'November': 'n', 'Oscar': 'o', 'Papa': 'p', 'Quebec': 'q', 'Romeo': 'r', 'Sierra': 's', 'Tango': 't', 'Uniform': 'u', 'Victor': 'v', 'Whiskey': 'w', 'X-ray': 'x', 'Yankee': 'y', 'Zulu': 'z', 'Zero': '0', 'One': '1', 'Two': '2', 'Three': '3', 'Four': '4', 'Five': '5', 'Six': '6', 'Seven': '7', 'Eight': '8', 'Nine': '9' }; return str.split(' ').map(w => { const k = w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); return r[k] || w; }).join(''); },
     morse: (str) => { const r = { '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y', '--..': 'Z', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8', '----.': '9', '-----': '0', '/': ' ', '.-.-.-': '.', '--..--': ',', '..--..': '?', '-.-.--': '!', '.--.-.': '@', '-....-': '-' }; return str.split(' ').map(c => r[c] || c).join(''); },
     leet: (str) => { const r = { '4': 'a', '8': 'b', '3': 'e', '9': 'g', '1': 'l', '0': 'o', '5': 's', '7': 't', '2': 'z' }; return str.split('').map(c => r[c] || c).join(''); },
@@ -264,6 +284,8 @@ function findBestMatch(text) {
             if (key === 'morse' && /^[\.\-\/\s]+$/.test(t)) score += 150;
             if (key === 'htmlEnt' && /&[#a-zA-Z0-9]+;/.test(t)) score += 100;
             if (key === 'url' && /%[0-9A-F]{2}/i.test(t)) score += 100;
+            if (key === 'unicode' && /\\u[0-9A-Fa-f]{4}/.test(t)) score += 100;
+            if (key === 'tap' && /^([1-5]{2}\s*)+$/.test(t)) score += 100;
 
             if (score > maxScore) {
                 maxScore = score;
@@ -652,8 +674,50 @@ function updateQuickTool() {
     }
 }
 
+/**
+ * Sets up the file upload functionality by injecting a hidden file input
+ * and an upload button next to the input label.
+ */
+function setupFileUpload() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt,text/plain';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
+                alert('Please select a text file (.txt).');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                inputEl.value = evt.target.result;
+                processText();
+            };
+            reader.readAsText(file);
+        }
+    });
+
+    const label = document.querySelector('label[for="input-text"]');
+    if (label) {
+        label.style.display = 'inline-block';
+        label.style.marginRight = '12px';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerHTML = '<svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Upload File';
+        btn.className = "text-xs bg-white/5 hover:bg-white/10 text-gray-400 border border-white/10 px-3 py-1 rounded-full transition-all cursor-pointer inline-flex items-center hover:text-white hover:border-white/30";
+        btn.onclick = (e) => { e.preventDefault(); fileInput.click(); };
+        label.parentNode.insertBefore(btn, label.nextSibling);
+    }
+}
+
 inputEl.addEventListener('input', debounce(processText, 300));
 window.addEventListener('DOMContentLoaded', () => {
+    setupFileUpload();
     const params = new URLSearchParams(window.location.search);
     
     if (params.has('mode')) {
