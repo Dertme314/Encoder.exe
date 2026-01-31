@@ -521,6 +521,25 @@ function renderSettings() {
     // Encoders Grid
     const grid = document.getElementById('settings-encoders-grid');
     grid.innerHTML = '';
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'col-span-full flex gap-2 mb-2 pb-2 border-b border-white/10';
+    toolbar.style.gridColumn = '1 / -1';
+
+    const btnAll = document.createElement('button');
+    btnAll.innerText = 'Select All';
+    btnAll.className = 'text-xs bg-accent-600/20 hover:bg-accent-600/40 text-accent-400 border border-accent-500/30 px-2 py-1 rounded transition-colors';
+    btnAll.onclick = () => toggleAllEncoders(true);
+
+    const btnNone = document.createElement('button');
+    btnNone.innerText = 'Deselect All';
+    btnNone.className = 'text-xs bg-white/5 hover:bg-white/10 text-gray-400 border border-white/10 px-2 py-1 rounded transition-colors';
+    btnNone.onclick = () => toggleAllEncoders(false);
+
+    toolbar.appendChild(btnAll);
+    toolbar.appendChild(btnNone);
+    grid.appendChild(toolbar);
+
     Object.keys(encoders).forEach(key => {
         const isChecked = activeEncoders.includes(key);
         const label = document.createElement('label');
