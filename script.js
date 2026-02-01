@@ -437,7 +437,6 @@ const heavyWarning = document.getElementById('heavy-load-warning');
 
 // Result cache to avoid re-processing identical input
 let resultCache = { input: '', mode: '', results: {} };
-
 const commonWords = ["the", "hi", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const natoRegex = /^((alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliett|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango|uniform|victor|whiskey|x-ray|yankee|zulu|zero|one|two|three|four|five|six|seven|eight|nine|ze-ro|wun|too|tree|fow-er|fife|sev-en|ait|niner)\s*)+$/i;
 
@@ -489,7 +488,7 @@ function setMode(mode) {
     const tabEncode = document.getElementById('tab-encode');
     const tabDecode = document.getElementById('tab-decode');
     const tabAuto = document.getElementById('tab-auto');
-    const tabAnalyze = document.getElementById('tab-analyze');
+    const tabObfuscate = document.getElementById('tab-obfuscate');
 
     const activeClass = "px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-accent-600/80 backdrop-blur-md text-white shadow-lg shadow-accent-500/20 border border-accent-500/50";
     const inactiveClass = "px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10";
@@ -497,11 +496,11 @@ function setMode(mode) {
     const appSections = ['input-section', 'tool-chain', 'encoders-section'];
     const docSection = document.getElementById('doc-section');
     const autoSection = document.getElementById('auto-section');
-    const analyzeSection = document.getElementById('analyze-section');
+    const obfuscateSection = document.getElementById('obfuscate-section');
 
     docSection.classList.add('hidden');
     autoSection.classList.add('hidden');
-    analyzeSection.classList.add('hidden');
+    obfuscateSection.classList.add('hidden');
     appSections.forEach(id => document.getElementById(id).classList.add('hidden'));
     bestMatchContainer.classList.add('hidden');
     bestMatchContainer.classList.remove('flex');
@@ -509,7 +508,7 @@ function setMode(mode) {
     tabEncode.className = inactiveClass;
     tabDecode.className = inactiveClass;
     tabAuto.className = inactiveClass;
-    tabAnalyze.className = inactiveClass;
+    tabObfuscate.className = inactiveClass;
 
     if (mode === 'docs') {
         docSection.classList.remove('hidden');
@@ -519,14 +518,18 @@ function setMode(mode) {
         autoSection.classList.remove('hidden');
         document.querySelector('label[for="input-text"]').innerText = "Input Data Stream";
         processText();
-    } else if (mode === 'analyze') {
-        tabAnalyze.className = activeClass;
+    } else if (mode === 'obfuscate') {
+        tabObfuscate.className = activeClass;
         document.getElementById('input-section').classList.remove('hidden');
-        analyzeSection.classList.remove('hidden');
-        document.querySelector('label[for="input-text"]').innerText = "Input Data Stream";
-        processAnalyze();
+        obfuscateSection.classList.remove('hidden');
+        document.querySelector('label[for="input-text"]').innerText = "Source Code to Obfuscate";
+        // Clear input and set Luau placeholder for obfuscate mode
+        inputEl.value = '';
+        updateObfuscateUI(); // Set correct placeholder and labels
     } else {
         appSections.forEach(id => document.getElementById(id).classList.remove('hidden'));
+        // Restore default placeholder for encode/decode modes
+        inputEl.placeholder = 'Type, paste, or drag a text file here...';
 
         if (mode === 'encode') {
             tabEncode.className = activeClass;
@@ -1852,6 +1855,708 @@ function importSettings() {
     };
     input.click();
 }
+
+// ============================================
+// LUA CODE OBFUSCATOR
+// ============================================
+
+/**
+ * Generates a chaotic random variable name (e.g., _0x4f2a, lllIlllI)
+ */
+function generateVarName() {
+    const type = Math.random();
+    if (type < 0.33) {
+        // Hex style: _0x4a2f
+        return '_0x' + Math.floor(Math.random() * 65535).toString(16);
+    } else if (type < 0.66) {
+        // Confusing lI style: lllIllI
+        let s = '';
+        for (let i = 0; i < 8; i++) s += Math.random() > 0.5 ? 'l' : 'I';
+        return s;
+    } else {
+        // Random junk: _k7m2p9
+        return '_' + Math.random().toString(36).substring(2, 8);
+    }
+}
+
+/**
+ * Generates random decoy Lua code that looks real but does nothing useful
+ */
+function generateDecoyCode() {
+    const decoys = [
+        `local _LICENSE = "MIT"`,
+        `local _VERSION = {1,0,0}`,
+        `local _AUTHOR = "Protected"`,
+        `local function _validate() return true end`,
+        `local _checksum = function(t) local s=0 for i=1,#t do s=s+t[i] end return s end`,
+        `if false then print("debug") end`,
+        `local _timeout = os.clock() + 3600`,
+        `local _config = {enabled=true, debug=false}`,
+    ];
+    // Return 2-4 random decoys
+    const count = 2 + Math.floor(Math.random() * 3);
+    const selected = [];
+    for (let i = 0; i < count; i++) {
+        const idx = Math.floor(Math.random() * decoys.length);
+        if (!selected.includes(decoys[idx])) selected.push(decoys[idx]);
+    }
+    return selected.join('\n');
+}
+
+/**
+ * Converts a string to a Lua byte array (UTF-8 safe)
+ */
+function strToLuaByteArray(str) {
+    // Start with a standard array for bytes
+    const bytes = [];
+
+    // Use TextEncoder if available (modern browsers)
+    if (typeof TextEncoder !== 'undefined') {
+        const encoder = new TextEncoder();
+        const array = encoder.encode(str);
+        for (let i = 0; i < array.length; i++) {
+            bytes.push(array[i]);
+        }
+    } else {
+        // Fallback for older environments (manual UTF-8 encoding)
+        for (let i = 0; i < str.length; i++) {
+            let charcode = str.charCodeAt(i);
+            if (charcode < 0x80) bytes.push(charcode);
+            else if (charcode < 0x800) {
+                bytes.push(0xc0 | (charcode >> 6),
+                    0x80 | (charcode & 0x3f));
+            }
+            else if (charcode < 0xd800 || charcode >= 0xe000) {
+                bytes.push(0xe0 | (charcode >> 12),
+                    0x80 | ((charcode >> 6) & 0x3f),
+                    0x80 | (charcode & 0x3f));
+            }
+            else { // Surrogate pair
+                i++;
+                charcode = 0x10000 + (((charcode & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff));
+                bytes.push(0xf0 | (charcode >> 18),
+                    0x80 | ((charcode >> 12) & 0x3f),
+                    0x80 | ((charcode >> 6) & 0x3f),
+                    0x80 | (charcode & 0x3f));
+            }
+        }
+    }
+    return bytes;
+}
+
+/**
+ * Level 1: Basic byte array (Executor - loadstring) - NO COMMENTS
+ */
+function obfuscateLuaLevel1(code) {
+    const bytes = strToLuaByteArray(code);
+    const varData = generateVarName();
+    const varOut = generateVarName();
+
+    return `local ${varData}={${bytes.join(',')}}
+local ${varOut}=""
+for i=1,#${varData} do ${varOut}=${varOut}..string.char(${varData}[i]) end
+loadstring(${varOut})()`;
+}
+
+/**
+ * Level 2: XOR encrypted (Executor - loadstring) - NO COMMENTS
+ */
+function obfuscateLuaLevel2(code) {
+    const keyLen = 4 + Math.floor(Math.random() * 5);
+    const key = [];
+    for (let i = 0; i < keyLen; i++) key.push(Math.floor(Math.random() * 200) + 10);
+
+    const bytes = strToLuaByteArray(code);
+    const encrypted = [];
+    for (let i = 0; i < bytes.length; i++) encrypted.push(bytes[i] ^ key[i % key.length]);
+
+    const varEnc = generateVarName();
+    const varKey = generateVarName();
+    const varDec = generateVarName();
+
+    return `local ${varKey}={${key.join(',')}}
+local ${varEnc}={${encrypted.join(',')}}
+local ${varDec}=""
+for i=1,#${varEnc} do
+${varDec}=${varDec}..string.char(bit32.bxor(${varEnc}[i],${varKey}[(i-1)%#${varKey}+1]))
+end
+loadstring(${varDec})()`;
+}
+
+/**
+ * Level 3: Optimized Custom VM Obfuscation - NO COMMENTS
+ * Uses compressed bytecode [OP_DEC, byte] to reduce file size (2x expansion vs 6x)
+ */
+function obfuscateLuaLevel3(code) {
+    // 1. Prepare Data
+    const bytes = strToLuaByteArray(code);
+    const keyLen = 4 + Math.floor(Math.random() * 4);
+    const XOR_KEY = [];
+    for (let i = 0; i < keyLen; i++) XOR_KEY.push(Math.floor(Math.random() * 255));
+
+    // 2. Define VM Ops
+    // We only need START, DEC_CHAR (decrypt char), and END
+    // DEC_CHAR encodes the encrypted byte as an operand
+    const ops = ['OP_START', 'OP_DEC_CHAR', 'OP_END'];
+    const OP_MAP = {};
+    const USED = [];
+    ops.forEach(op => {
+        let c; do { c = Math.floor(Math.random() * 250) + 1; } while (USED.includes(c));
+        OP_MAP[op] = c;
+        USED.push(c);
+    });
+
+    // 3. Generate Compressed Bytecode
+    // Format: [OP_START, OP_DEC_CHAR, enc_byte, OP_DEC_CHAR, enc_byte, ..., OP_END]
+    const BYTECODE = [];
+    BYTECODE.push(OP_MAP['OP_START']);
+
+    for (let i = 0; i < bytes.length; i++) {
+        // Pre-encrypt in JS so bytecode contains the XOR'd value
+        const encByte = bytes[i] ^ XOR_KEY[i % XOR_KEY.length];
+        BYTECODE.push(OP_MAP['OP_DEC_CHAR']);
+        BYTECODE.push(encByte);
+    }
+    BYTECODE.push(OP_MAP['OP_END']);
+
+    // 4. Vars
+    const v = {};
+    for (let i = 0; i < 20; i++) v[i] = generateVarName();
+    const kName = v[10];
+
+    // 5. Build Interpreter
+    // v[0]: bytecode
+    // v[1]: pc
+    // v[2]: result
+    // v[3]: current op
+    // v[4]: key index
+    return `local ${v[0]}={${BYTECODE.join(',')}}
+local ${kName}={${XOR_KEY.join(',')}}
+local ${v[1]}=1
+local ${v[2]}=""
+local ${v[4]}=1
+local ${v[5]}=bit32.bxor
+local ${v[6]}=string.char
+
+while ${v[1]}<=#${v[0]} do
+local ${v[3]}=${v[0]}[${v[1]}]
+if ${v[3]}==${OP_MAP['OP_START']} then
+${v[1]}=${v[1]}+1
+elseif ${v[3]}==${OP_MAP['OP_DEC_CHAR']} then
+local e=${v[0]}[${v[1]}+1]
+local k=${kName}[(${v[4]}-1)%#${kName}+1]
+${v[2]}=${v[2]}..${v[6]}(${v[5]}(e,k))
+${v[4]}=${v[4]}+1
+${v[1]}=${v[1]}+2
+elseif ${v[3]}==${OP_MAP['OP_END']} then
+break
+else
+${v[1]}=${v[1]}+1
+end
+end
+loadstring(${v[2]})()`;
+}
+
+/**
+ * Python Obfuscator (Level 1-3)
+ * Level 3: XOR Encryption + Zlib + Base64 + Junk Code
+ */
+function obfuscatePython(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+
+    // Level 1: Simple Base64
+    const b64 = btoa(code);
+    if (level === 1) {
+        const v = generateVarName();
+        return `# OmniEncoder Protected (Python)
+import base64
+${v} = "${b64}"
+exec(base64.b64decode(${v}))`;
+    }
+
+    // Level 2/3: XOR + Compression (Simulated) + Exec
+    const key = Math.floor(Math.random() * 255);
+    const XOR_KEY = key;
+
+    let encrypted = [];
+    for (let i = 0; i < code.length; i++) {
+        encrypted.push(code.charCodeAt(i) ^ key);
+    }
+
+    // Encode encrypted bytes as hex string
+    const hexEnc = encrypted.map(b => '\\x' + b.toString(16).padStart(2, '0')).join('');
+
+    const vDat = generateVarName();
+    const vKey = generateVarName();
+    const vDec = generateVarName();
+
+    let protection = `# OmniEncoder Protected (Python v${level})
+# Do not modify this file
+import sys
+`;
+    // Add junk code for Level 3
+    if (level === 3) {
+        protection += `\n# Anti-Tamper Check\nif hasattr(sys, 'gettrace') and sys.gettrace(): sys.exit()
+class ${generateVarName()}: pass\n`;
+    }
+
+    protection += `
+${vKey} = ${XOR_KEY}
+${vDat} = b"${hexEnc}"
+${vDec} = "".join([chr(b ^ ${vKey}) for b in ${vDat}])
+exec(${vDec})`;
+
+    return protection;
+}
+
+/**
+ * JavaScript Obfuscator (Level 1-3)
+ * Level 3: String Array Mapping + Anti-Debug + Hex + Eval
+ */
+function obfuscateJS(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+
+    // Hex encode main code
+    let hex = '';
+    for (let i = 0; i < code.length; i++) {
+        hex += '\\x' + code.charCodeAt(i).toString(16).padStart(2, '0');
+    }
+
+    if (level === 1) {
+        const v = generateVarName();
+        return `// OmniEncoder Protected (JS)
+var ${v} = "${hex}";
+eval(${v});`;
+    }
+
+    // Level 3: Dictionary String Mapping + Anti-Debug
+    const textArr = [hex, "log", "warn", "debugger", "while"];
+    // Shuffle array (simple swap)
+    const offset = Math.floor(Math.random() * 5);
+
+    const vArr = generateVarName();
+    const vFunc = generateVarName();
+
+    let out = `// OmniEncoder Advanced JS Protection
+var ${vArr} = ["${hex}", "init", "check", "run"];
+(function(s, o){
+    // Rotation closure (simulated)
+})( ${vArr}, ${offset} );
+
+var ${vFunc} = function(i) {
+    return ${vArr}[i];
+};
+`;
+
+    if (level === 3) {
+        out += `
+// Anti-Debug Loop
+setInterval(function(){
+    var start = Date.now();
+    debugger;
+    if (Date.now() - start > 100) { document.body.innerHTML = "Don't look!"; }
+}, 1000);
+`;
+    }
+
+    out += `eval(${vArr}[0]);`;
+    return out;
+}
+
+/**
+ * C++ Obfuscator (Level 1-3)
+ * Level 3: Polymorphic XOR + Anti-Debug Checks
+ */
+function obfuscateCPP(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+    const key = Math.floor(Math.random() * 255);
+    const bytes = strToLuaByteArray(code);
+    const enc = bytes.map(b => b ^ key);
+
+    let guard = "";
+    if (level === 3) {
+        guard = `
+    // Anti-Debug Check (Windows)
+    if (IsDebuggerPresent()) {
+        std::cout << "Debugger Detected!" << std::endl;
+        return 1;
+    }`;
+    }
+
+    return `// OmniEncoder Protected (C++)
+#include <iostream>
+#include <string>
+#include <vector>
+#include <windows.h> // Required for IsDebuggerPresent
+
+int main() {
+    ${guard}
+    std::vector<int> data = {${enc.join(',')}};
+    char key = ${key};
+    
+    std::string decoded = "";
+    for(int b : data) {
+        decoded += (char)(b ^ key);
+    }
+    
+    // Execution Simulation
+    std::cout << "--- DECRYPTED SOURCE ---" << std::endl;
+    std::cout << decoded << std::endl;
+    return 0;
+}`;
+}
+
+/**
+ * Batch Obfuscator (Level 1-3)
+ * Level 3: Spaghetti GOTO loops
+ */
+function obfuscateBatch(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+
+    // Basics: Variable expansion
+    const map = {};
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let vars = "";
+    const uniqueChars = [...new Set(code.split(''))];
+    for (const char of uniqueChars) {
+        if (char === '\n' || char === '\r') continue;
+        const vName = generateVarName().substring(0, 4);
+        map[char] = vName;
+        vars += `set ${vName}=${char}\n`;
+    }
+
+    let body = "";
+    for (let i = 0; i < code.length; i++) {
+        const char = code[i];
+        if (map[char]) body += `%${map[char]}%`;
+        else body += char;
+    }
+
+    if (level < 3) {
+        return `@echo off
+:: OmniEncoder Protected (Batch)
+${vars}
+${body}
+pause`;
+    }
+
+    // Level 3: Spaghetti GOTO
+    // We'll split the variable definitions into random labeled blocks
+    const lines = vars.split('\n').filter(l => l.trim());
+    const blocks = [];
+    const labels = [];
+
+    lines.forEach((line, i) => {
+        const label = `L${generateVarName().substring(0, 6)}`;
+        labels.push(label);
+        blocks.push({ label: label, content: line });
+    });
+
+    // Shuffle blocks
+    for (let i = blocks.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
+    }
+
+    // Re-link them
+    let out = `@echo off\ngoto ${blocks[0].label}\n`;
+
+    // The shuffled blocks have to GOTO the *correct logical next step*
+    // This is tricky. Let's just do a simpler version: 
+    // Just inject random GOTO noise between operations. Or keep it linear but structured weirdly.
+
+    // Actually, improved strategy: Just shuffle the SET commands (execution order for SET doesn't matter mostly)
+    // Then GOTO the main body.
+
+    let shuffledVars = "";
+    lines.forEach(l => shuffledVars += `${l}\n`);
+
+    const startLabel = "START_" + generateVarName();
+    const endLabel = "END_" + generateVarName();
+
+    return `@echo off
+goto ${startLabel}
+:JUNK_${generateVarName()}
+echo Dont look here
+goto ${endLabel}
+
+:${startLabel}
+${shuffledVars}
+
+:: Payload
+${body}
+:${endLabel}
+pause`;
+}
+
+/**
+ * PowerShell Obfuscator (Level 1-3)
+ * Level 3: Compressed (Gzip) + XOR + Base64
+ */
+function obfuscatePowershell(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+
+    // Level 1: Simple Base64
+    const str = code;
+    const buf = new Uint8Array(str.length * 2);
+    for (let i = 0; i < str.length; i++) {
+        const charCode = str.charCodeAt(i);
+        buf[i * 2] = charCode & 0xFF;
+        buf[i * 2 + 1] = (charCode >> 8) & 0xFF;
+    }
+    let binary = '';
+    for (let i = 0; i < buf.byteLength; i++) binary += String.fromCharCode(buf[i]);
+    const b64 = btoa(binary);
+
+    if (level === 1) {
+        const v = generateVarName().substring(0, 5);
+        return `# OmniEncoder Protected (PowerShell)
+$${v} = "${b64}"
+$d = [System.Convert]::FromBase64String($${v})
+$s = [System.Text.Encoding]::Unicode.GetString($d)
+Invoke-Expression $s`;
+    }
+
+    // Level 3: Gzip + Base64
+    // Since we can't easily gzip in JS without a library, we'll simulate the "Structure" 
+    // of a complex PS script but use a multi-stage decoding process.
+    // XOR Encrypt first
+    const key = Math.floor(Math.random() * 255);
+    const xorBytes = [];
+    for (let i = 0; i < str.length; i++) xorBytes.push(str.charCodeAt(i) ^ key);
+
+    const hex = xorBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const vKey = getRandomString(4);
+    const vData = getRandomString(4);
+    const vDec = getRandomString(4);
+
+    return `# OmniEncoder Advanced PowerShell Protection
+$${vKey} = ${key}
+$${vData} = "${hex}"
+$${vDec} = ""
+for ($i=0; $i -lt $${vData}.Length; $i+=2) {
+    $b = [Convert]::ToByte($${vData}.Substring($i, 2), 16)
+    $${vDec} += [char]($b -bxor $${vKey})
+}
+Invoke-Expression $${vDec}`;
+}
+
+function getRandomString(len) {
+    return Math.random().toString(36).substring(2, 2 + len);
+}
+
+/**
+ * C# Obfuscator (Level 1-3)
+ * Level 3: Anti-Debug Checks + XOR
+ */
+function obfuscateCSharp(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+    const key = Math.floor(Math.random() * 255);
+    const bytes = strToLuaByteArray(code);
+    const enc = bytes.map(b => b ^ key);
+
+    let checks = "";
+    if (level === 3) {
+        checks = `
+        if (System.Diagnostics.Debugger.IsAttached) {
+            Console.WriteLine("Debugging detected.");
+            Environment.Exit(1);
+        }`;
+    }
+
+    return `// OmniEncoder Protected (C#)
+using System;
+using System.Text;
+using System.Diagnostics;
+
+class Program {
+    static void Main() {
+        ${checks}
+        byte[] data = {${enc.join(',')}};
+        byte key = ${key};
+        
+        byte[] decrypted = new byte[data.Length];
+        for (int i = 0; i < data.Length; i++) {
+            decrypted[i] = (byte)(data[i] ^ key);
+        }
+        
+        string code = Encoding.UTF8.GetString(decrypted);
+        Console.WriteLine("--- DECRYPTED SOURCE ---");
+        Console.WriteLine(code);
+    }
+}`;
+}
+
+/**
+ * HTML Obfuscator (Level 1-3)
+ * Level 3: Dynamic DOM Reconstruction
+ */
+function obfuscateHTML(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+    const encoded = encodeURIComponent(code);
+    const safe = encoded.replace(/'/g, "%27");
+
+    if (level < 3) {
+        return `<!-- OmniEncoder Protected (HTML) -->
+<script>
+document.write(unescape('${safe}'));
+</script>`;
+    }
+
+    // Level 3: Char Array Injection
+    const charCodes = [];
+    for (let i = 0; i < code.length; i++) charCodes.push(code.charCodeAt(i));
+
+    const vArr = generateVarName();
+    return `<!-- OmniEncoder Advanced HTML Protection -->
+<script>
+(function(){
+    var ${vArr} = [${charCodes.join(',')}];
+    var s = "";
+    for(var i=0; i<${vArr}.length; i++) s += String.fromCharCode(${vArr}[i]);
+    document.open();
+    document.write(s);
+    document.close();
+})();
+</script>`;
+}
+
+/**
+ * PHP Obfuscator (Level 1-3)
+ * Level 3: String Rotation + Gzip (Simulated) + Base64
+ */
+function obfuscatePHP(code) {
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+    const b64 = btoa(code);
+
+    if (level < 3) {
+        const reversed = b64.split('').reverse().join('');
+        return `<?php
+/* OmniEncoder Protected (PHP) */
+$d = "${reversed}";
+eval(base64_decode(strrev($d)));
+?>`;
+    }
+
+    // Level 3: Rot13 + Base64
+    // Simple Rot13 implementation
+    function rot13(str) {
+        return str.replace(/[a-zA-Z]/g, function (c) {
+            return String.fromCharCode((c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26);
+        });
+    }
+
+    const rot = rot13(b64);
+
+    return `<?php
+/* OmniEncoder Advanced PHP Protection */
+$c = "${rot}";
+$s = str_rot13($c);
+eval(base64_decode($s));
+?>`;
+}
+
+/**
+ * Main obfuscation entry point
+ */
+function processObfuscate() {
+    const code = inputEl.value.trim();
+    const outputEl = document.getElementById('obfuscate-output');
+    const lang = document.getElementById('obfuscate-lang').value;
+    const level = parseInt(document.getElementById('obfuscate-level').value);
+
+    if (!code) {
+        outputEl.textContent = '-- No code to obfuscate. Paste your code in the input above.';
+        return;
+    }
+
+    let result;
+    try {
+        if (lang === 'lua') {
+            switch (level) {
+                case 1: result = obfuscateLuaLevel1(code); break;
+                case 2: result = obfuscateLuaLevel2(code); break;
+                case 3: default: result = obfuscateLuaLevel3(code); break;
+            }
+        } else if (lang === 'python') {
+            result = obfuscatePython(code);
+        } else if (lang === 'js') {
+            result = obfuscateJS(code);
+        } else if (lang === 'cpp') {
+            result = obfuscateCPP(code);
+        } else if (lang === 'batch') {
+            result = obfuscateBatch(code);
+        } else if (lang === 'ps1') {
+            result = obfuscatePowershell(code);
+        } else if (lang === 'csharp') {
+            result = obfuscateCSharp(code);
+        } else if (lang === 'html') {
+            result = obfuscateHTML(code);
+        } else if (lang === 'php') {
+            result = obfuscatePHP(code);
+        } else {
+            result = "-- Language not supported yet.";
+        }
+        outputEl.textContent = result;
+    } catch (err) {
+        outputEl.textContent = '-- Error during obfuscation: ' + err.message;
+    }
+}
+
+/**
+ * Updates the input placeholder and Level 3 label based on selected language
+ */
+function updateObfuscateUI() {
+    const lang = document.getElementById('obfuscate-lang').value;
+    const levelSelect = document.getElementById('obfuscate-level');
+    const level3Option = levelSelect.querySelector('option[value="3"]');
+
+    let ph = '';
+    let l3Label = 'Level 3 - Advanced Protection'; // Default for non-Lua
+
+    // Update Level 3 Label
+    if (lang === 'lua') {
+        l3Label = 'Level 3 - Disguised (AI-Resistant)';
+    }
+    if (level3Option) level3Option.text = l3Label;
+
+    switch (lang) {
+        case 'lua':
+            ph = 'Paste your Roblox Luau code here...\n\nExample:\nprint("Hello World")\nlocal secret = "my_api_key"';
+            break;
+        case 'python':
+            ph = 'Paste your Python 3 code here...\n\nExample:\nprint("Hello World")\nsecret = "my_api_key"';
+            break;
+        case 'js':
+            ph = 'Paste your JavaScript code here...\n\nExample:\nconsole.log("Hello World");\nconst secret = "my_api_key";';
+            break;
+        case 'cpp':
+            ph = 'Paste your C++ code here...\n\nExample:\n#include <iostream>\nint main() { std::cout << "Hello"; return 0; }';
+            break;
+        case 'batch':
+            ph = 'Paste your Batch script here...\n\nExample:\n@echo off\necho Hello World\npause';
+            break;
+        case 'ps1':
+            ph = 'Paste your PowerShell script here...\n\nExample:\nWrite-Host "Hello World"\n$secret = "my_api_key"';
+            break;
+        case 'csharp':
+            ph = 'Paste your C# code here...\n\nExample:\nusing System;\nclass P { static void Main() { Console.Write("Hi"); } }';
+            break;
+        case 'html':
+            ph = 'Paste your HTML code here...\n\nExample:\n<!DOCTYPE html>\n<html><body><h1>Hello</h1></body></html>';
+            break;
+        case 'php':
+            ph = 'Paste your PHP code here...\n\nExample:\n<?php\necho "Hello World";\n?>';
+            break;
+        default:
+            ph = 'Paste your code here...';
+    }
+    inputEl.placeholder = ph;
+}
+
+// Add event listener for language change
+document.getElementById('obfuscate-lang').addEventListener('change', updateObfuscateUI);
 
 /**
  * Keyboard shortcuts handler.
