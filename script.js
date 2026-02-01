@@ -95,10 +95,10 @@ const hmacSign = async (key, data) => {
  * Each encoder has a name, description, and a function `fn` that takes a string and returns the encoded string.
  */
 const encoders = {
-    base64: { name: "Base64", desc: "Binary-to-text encoding scheme", fn: (str) => { try { const bytes = new TextEncoder().encode(str); let binary = ''; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]); return btoa(binary); } catch (e) { return "Error"; } } },
-    hex: { name: "Hexadecimal", desc: "Base-16 ASCII representation", fn: (str) => { const bytes = new TextEncoder().encode(str); if (bytes.length === 0) return ''; let res = bytes[0].toString(16).padStart(2, '0'); for (let i = 1; i < bytes.length; i++) res += ' ' + bytes[i].toString(16).padStart(2, '0'); return res; } },
-    octal: { name: "Octal", desc: "Base-8 number system", fn: (str) => { const bytes = new TextEncoder().encode(str); if (bytes.length === 0) return ''; let res = bytes[0].toString(8).padStart(3, '0'); for (let i = 1; i < bytes.length; i++) res += ' ' + bytes[i].toString(8).padStart(3, '0'); return res; } },
-    binary: { name: "Binary", desc: "8-bit binary stream", fn: (str) => { const bytes = new TextEncoder().encode(str); if (bytes.length === 0) return ''; let res = bytes[0].toString(2).padStart(8, '0'); for (let i = 1; i < bytes.length; i++) res += ' ' + bytes[i].toString(2).padStart(8, '0'); return res; } },
+    base64: { name: "Base64", desc: "Binary-to-text encoding scheme", fn: (str) => { try { const bytes = new TextEncoder().encode(str); const binary = []; for (let i = 0; i < bytes.length; i++) binary.push(String.fromCharCode(bytes[i])); return btoa(binary.join('')); } catch (e) { return "Error"; } } },
+    hex: { name: "Hexadecimal", desc: "Base-16 ASCII representation", fn: (str) => { const bytes = new TextEncoder().encode(str); const res = []; for (let i = 0; i < bytes.length; i++) res.push(bytes[i].toString(16).padStart(2, '0')); return res.join(' '); } },
+    octal: { name: "Octal", desc: "Base-8 number system", fn: (str) => { const bytes = new TextEncoder().encode(str); const res = []; for (let i = 0; i < bytes.length; i++) res.push(bytes[i].toString(8).padStart(3, '0')); return res.join(' '); } },
+    binary: { name: "Binary", desc: "8-bit binary stream", fn: (str) => { const bytes = new TextEncoder().encode(str); const res = []; for (let i = 0; i < bytes.length; i++) res.push(bytes[i].toString(2).padStart(8, '0')); return res.join(' '); } },
     rot13: { name: "ROT13", desc: "Simple letter substitution", fn: (str) => { return str.replace(/[a-zA-Z]/g, function (c) { return String.fromCharCode((c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26); }); } },
     leet: { name: "1337 Speak", desc: "Alphanumeric substitution", fn: (str) => { const m = { 'a': '4', 'b': '8', 'e': '3', 'g': '9', 'l': '1', 'o': '0', 's': '5', 't': '7', 'z': '2', 'A': '4', 'B': '8', 'E': '3', 'G': '9', 'L': '1', 'O': '0', 'S': '5', 'T': '7', 'Z': '2' }; return str.split('').map(c => m[c] || c).join(''); } },
     atbash: { name: "Atbash", desc: "Reversed alphabet cipher", fn: (str) => { return str.replace(/[a-zA-Z]/g, (c) => { const k = c.charCodeAt(0); if (k >= 65 && k <= 90) return String.fromCharCode(90 - (k - 65)); if (k >= 97 && k <= 122) return String.fromCharCode(122 - (k - 97)); return c; }); } },
@@ -111,6 +111,7 @@ const encoders = {
     crc32: { name: "CRC32", desc: "Cyclic Redundancy Check", fn: (str) => crc32(str), reversible: false },
     adler32: { name: "Adler-32", desc: "Checksum algorithm (zlib)", fn: (str) => adler32(str), reversible: false },
     base32: { name: "Base32", desc: "RFC 4648 Base32 encoding", fn: (str) => { const a = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; const bytes = new TextEncoder().encode(str); let output = ""; let val = 0; let bits = 0; for (let i = 0; i < bytes.length; i++) { val = (val << 8) | bytes[i]; bits += 8; while (bits >= 5) { output += a[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits > 0) output += a[(val << (5 - bits)) & 31]; while (output.length % 8 !== 0) output += "="; return output; } },
+    base58: { name: "Base58", desc: "Bitcoin/Crypto encoding", fn: (str) => { const A = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"; const b = new TextEncoder().encode(str); let x = 0n; for(let i=0; i<b.length; i++) x = x * 256n + BigInt(b[i]); const res = []; while(x > 0n) { res.push(A[Number(x % 58n)]); x /= 58n; } for(let i=0; i<b.length && b[i]===0; i++) res.push('1'); return res.reverse().join(''); } },
     vigenere: { name: "Vigenère Cipher", desc: "Polyalphabetic substitution", fn: (str, key) => { if (!key) return "Key required"; const k = key.toUpperCase().replace(/[^A-Z]/g, ''); if (!k) return str; let ki = 0; return str.replace(/[a-zA-Z]/g, c => { const base = c >= 'a' ? 97 : 65; const shift = k.charCodeAt(ki++ % k.length) - 65; return String.fromCharCode(((c.charCodeAt(0) - base + shift) % 26) + base); }); } },
     jwt: { name: "JWT Builder", desc: "Sign JSON as HS256 Token", fn: async (str, key) => {
         const k = key || "OmniEncoder";
@@ -122,8 +123,8 @@ const encoders = {
             const header = { alg: "HS256", typ: "JWT" };
             const b64 = (obj) => {
                 const bytes = new TextEncoder().encode(JSON.stringify(obj));
-                let bin = ''; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-                return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                const bin = []; for (let i = 0; i < bytes.length; i++) bin.push(String.fromCharCode(bytes[i]));
+                return btoa(bin.join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
             };
             const unsigned = `${b64(header)}.${b64(payload)}`;
             return `${unsigned}.${await hmacSign(k, unsigned)}`;
@@ -143,11 +144,11 @@ const encoders = {
     htmlEnt: { name: "HTML Entities", desc: "Safe characters for web", fn: (str) => { return str.replace(/[\u00A0-\u9999<>\&]/g, (i) => '&#'+i.charCodeAt(0)+';'); } },
     url: { name: "URL Encoded", desc: "Percent-encoding for URLs", fn: (str) => encodeURIComponent(str) },
     reverse: { name: "Reverse", desc: "Reversed character order", fn: (str) => str.split('').reverse().join('') },
-    ascii: { name: "ASCII", desc: "Decimal code points", fn: (str) => { if (str.length === 0) return ''; let res = '' + str.charCodeAt(0); for (let i = 1; i < str.length; i++) res += ', ' + str.charCodeAt(i); return res; } },
+    ascii: { name: "ASCII", desc: "Decimal code points", fn: (str) => { const res = []; for (let i = 0; i < str.length; i++) res.push(str.charCodeAt(i)); return res.join(', '); } },
     morse: { name: "Morse Code", desc: "Telecommunication encoding", fn: (str) => { const m = { 'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-', 'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----', ' ': '/', '.': '.-.-.-', ',': '--..--', '?': '..--..', '!': '-.-.--', '@': '.--.-.', '-': '-....-' }; return str.toUpperCase().split('').map(c => m[c] || c).join(' '); } },
     quotedPrintable: { name: "Quoted-Printable", desc: "MIME encoding (=XX)", fn: (str) => str.split('').map(c => { const code = c.charCodeAt(0); return (code >= 33 && code <= 126 && c !== '=') ? c : '=' + code.toString(16).toUpperCase().padStart(2, '0'); }).join('') },
     bacon: { name: "Bacon Cipher", desc: "Steganography (A/B)", fn: (str) => { const map = {'A':'aaaaa','B':'aaaab','C':'aaaba','D':'aaabb','E':'aabaa','F':'aabab','G':'aabba','H':'aabbb','I':'abaaa','J':'abaab','K':'ababa','L':'ababb','M':'abbaa','N':'abbab','O':'abbba','P':'abbbb','Q':'baaaa','R':'baaab','S':'baaba','T':'baabb','U':'babaa','V':'babab','W':'babba','X':'babbb','Y':'bbaaa','Z':'bbaab'}; return str.toUpperCase().replace(/[A-Z]/g, c => map[c] || c); } },
-    dert: { name: "Dert Cipher", desc: "Shifted Base-4 (D,e,r,t)", fn: (str) => { const m=['D','e','r','t']; const bytes = new TextEncoder().encode(str); let res = ''; for(let i=0; i<bytes.length; i++) { let b = (bytes[i] + i) % 256; const s = i % 4; res += m[(((b >> 6) & 3) + s) % 4] + m[(((b >> 4) & 3) + s) % 4] + m[(((b >> 2) & 3) + s) % 4] + m[((b & 3) + s) % 4]; } return res; } }
+    dert: { name: "Dert Cipher", desc: "Shifted Base-4 (D,e,r,t)", fn: (str) => { const m=['D','e','r','t']; const bytes = new TextEncoder().encode(str); const res = []; for(let i=0; i<bytes.length; i++) { let b = (bytes[i] + i) % 256; const s = i % 4; res.push(m[(((b >> 6) & 3) + s) % 4] + m[(((b >> 4) & 3) + s) % 4] + m[(((b >> 2) & 3) + s) % 4] + m[((b & 3) + s) % 4]); } return res.join(''); } }
 };
 
 /**
@@ -253,6 +254,7 @@ const decoders = {
     crc32: (str) => /^[a-f0-9]{8}$/i.test(str.trim()) ? "Format: Valid CRC32 (Click to Verify)" : "Invalid CRC32 Format",
     adler32: (str) => /^[a-f0-9]{8}$/i.test(str.trim()) ? "Format: Valid Adler-32 (Click to Verify)" : "Invalid Adler-32 Format",
     base32: (str) => { const a = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; let clean = str.toUpperCase().replace(/[^A-Z2-7]/g, ""); if (clean.length === 0) return "Invalid Base32"; let output = []; let val = 0; let bits = 0; for (let i = 0; i < clean.length; i++) { val = (val << 5) | a.indexOf(clean[i]); bits += 5; if (bits >= 8) { output.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new TextDecoder().decode(new Uint8Array(output)); },
+    base58: (str) => { const A = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"; let x = 0n; for(let i=0; i<str.length; i++) { const idx = A.indexOf(str[i]); if(idx === -1) return "Invalid Base58"; x = x * 58n + BigInt(idx); } const b = []; while(x > 0n) { b.push(Number(x % 256n)); x /= 256n; } for(let i=0; i<str.length && str[i]==='1'; i++) b.push(0); return new TextDecoder().decode(new Uint8Array(b.reverse())); },
     vigenere: (str, key) => { if (!key) return "Key required"; const k = key.toUpperCase().replace(/[^A-Z]/g, ''); if (!k) return str; let ki = 0; return str.replace(/[a-zA-Z]/g, c => { const base = c >= 'a' ? 97 : 65; const shift = k.charCodeAt(ki++ % k.length) - 65; return String.fromCharCode(((c.charCodeAt(0) - base - shift + 26) % 26) + base); }); },
     jwt: (str) => { try { const parts = str.split('.'); if (parts.length !== 3) return "Invalid JWT format"; const fix = s => s.replace(/-/g, '+').replace(/_/g, '/').padEnd(s.length + (4 - s.length % 4) % 4, '='); const header = JSON.parse(atob(fix(parts[0]))); const payload = JSON.parse(atob(fix(parts[1]))); return JSON.stringify({ header, payload }, null, 2); } catch (e) { return "Invalid JWT"; } },
     aes: (str, pass) => aesDecrypt(str, pass),
@@ -279,12 +281,13 @@ window.omniResults = null;
 window.omniComplete = false;
 
 let processingTask = 0;
-const SLOW_THRESHOLD = 50000; // 50KB triggers slow mode
+const SLOW_THRESHOLD = 80000; // 80KB triggers slow mode
 const progressContainer = document.getElementById('progress-container');
 const progressBar = document.getElementById('progress-bar');
 const heavyWarning = document.getElementById('heavy-load-warning');
 
-const commonWords = ["the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me"];
+const commonWords = ["the", "hi", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what", "so", "up" , 0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const natoRegex = /^((alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliett|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango|uniform|victor|whiskey|x-ray|yankee|zulu|zero|one|two|three|four|five|six|seven|eight|nine|ze-ro|wun|too|tree|fow-er|fife|sev-en|ait|niner)\s*)+$/i;
 
 /**
  * Updates the progress bar UI.
@@ -410,13 +413,13 @@ function initGrid() {
                     <span id="score-${key}" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-gray-400"></span>
                 </div>
                 <div class="flex gap-0.5 ml-2 shrink-0 window-controls">
-                    <button onclick="event.stopPropagation();" class="w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
+                    <button onclick="event.stopPropagation();" class="win-btn-min w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
                         <div class="w-2 h-0.5 bg-current"></div>
                     </button>
-                    <button onclick="event.stopPropagation();" class="w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
+                    <button onclick="event.stopPropagation();" class="win-btn-max w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
                         <div class="w-2 h-2 border border-current"></div>
                     </button>
-                    <button onclick="event.stopPropagation();" class="w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
+                    <button onclick="event.stopPropagation();" class="win-btn-close w-5 h-5 flex items-center justify-center rounded border border-white/20 bg-white/5 text-gray-400 cursor-default">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
@@ -518,6 +521,7 @@ function calculateHeuristicScore(key, text, decoded) {
     else if (key === 'hex' && /^(0x)?[0-9A-Fa-f\s]+$/.test(t)) score += 80;
     else if (key === 'octal' && /^[0-7\s]+$/.test(t)) score += 80;
     else if (key === 'base64' && /^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0) score += 90;
+    else if (key === 'base58' && /^[1-9A-HJ-NP-Za-km-z]+$/.test(t) && !natoRegex.test(t)) score += 95;
     else if (key === 'morse' && /^[\.\-\/\s]+$/.test(t)) score += 150;
     else if (key === 'htmlEnt' && /&[#a-zA-Z0-9]+;/.test(t)) score += 100;
     else if (key === 'url' && /%[0-9A-F]{2}/i.test(t)) score += 100;
@@ -527,7 +531,7 @@ function calculateHeuristicScore(key, text, decoded) {
     else if (key === 'bacon' && /^[ab\s]+$/i.test(t)) score += 100;
     else if (key === 'quotedPrintable' && /=[0-9A-F]{2}/.test(t)) score += 100;
     else if (key === 'dert' && /^[Dert\s]+$/.test(t)) score += 100;
-    else if (key === 'nato' && /^((alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliett|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango|uniform|victor|whiskey|x-ray|yankee|zulu|ze-ro|wun|too|tree|fow-er|fife|six|sev-en|ait|niner)\s*)+$/i.test(t)) score += 100;
+    else if (key === 'nato' && natoRegex.test(t)) score += 100;
 
     // Heuristic 3: Dictionary Check
     const lower = decoded.toLowerCase();
@@ -684,6 +688,8 @@ function processAnalyze() {
     if (t.startsWith('{') && t.endsWith('}')) type = "JSON (Potential)";
     else if (t.startsWith('<') && t.endsWith('>')) type = "XML / HTML (Potential)";
     else if (/^[A-Za-z0-9+/]+={0,2}$/.test(t) && t.length % 4 === 0 && !t.includes(' ')) type = "Base64 (Potential)";
+    else if (natoRegex.test(t)) type = "NATO Phonetic (Potential)";
+    else if (/^[1-9A-HJ-NP-Za-km-z]+$/.test(t)) type = "Base58 (Potential)";
     else if (/^([0-9A-Fa-f]{2}\s*)+$/.test(t)) type = "Hex String (Potential)";
     else if (/^[Dert\s]+$/.test(t)) type = "Dert Cipher (Potential)";
     typeEl.innerText = `Type: ${type}`;
@@ -1041,7 +1047,7 @@ function applyTheme(theme) {
     if (theme === 'winxp') {
         style.innerHTML = `
             body { 
-                background: url('theme-1.png') no-repeat center center fixed !important; 
+                background: #245edb url('theme-1.png') no-repeat center center fixed !important; 
                 background-size: cover !important; 
                 font-family: 'Tahoma', 'Verdana', sans-serif !important; 
                 font-size: 11px !important;
@@ -1098,19 +1104,19 @@ function applyTheme(theme) {
             }
             
             /* Minimize & Maximize */
-            .window-controls button[title="Minimize"], .window-controls button[title="Maximize"] { background: linear-gradient(180deg, #fff 0%, #ece9d8 100%) !important; color: black !important; }
-            .window-controls button[title="Minimize"] div { background-color: black !important; width: 6px !important; height: 2px !important; margin-top: 6px !important; }
-            .window-controls button[title="Maximize"] div { border-color: black !important; border-width: 1px !important; width: 10px !important; height: 9px !important; border-top-width: 2px !important; }
+            .win-btn-min, .win-btn-max { background: linear-gradient(180deg, #fff 0%, #ece9d8 100%) !important; color: black !important; }
+            .win-btn-min div { background-color: black !important; width: 6px !important; height: 2px !important; margin-top: 6px !important; }
+            .win-btn-max div { border-color: black !important; border-width: 1px !important; width: 10px !important; height: 9px !important; border-top-width: 2px !important; }
 
-            /* Close Button (Heuristic for X icon) */
-            button:has(svg path[d*="M6 18L18 6M6 6l12 12"]) {
+            /* Close Button */
+            .win-btn-close {
                 background: linear-gradient(180deg, #e05252 0%, #b00000 100%) !important;
                 border: 1px solid #fff !important;
                 box-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important;
                 width: 20px !important; height: 20px !important;
                 display: flex !important; align-items: center !important; justify-content: center !important;
             }
-            button:has(svg path[d*="M6 18L18 6M6 6l12 12"]) svg { color: white !important; }
+            .win-btn-close svg { color: white !important; }
         `;
     } else {
         style.innerHTML = '';
@@ -1124,18 +1130,6 @@ function renderSettings() {
     // Chain Editor
     const chainList = document.getElementById('chain-editor-list');
     chainList.innerHTML = '';
-
-    const themeDiv = document.createElement('div');
-    themeDiv.className = 'flex justify-between items-center bg-white/5 p-2 rounded border border-white/10 mb-4';
-    themeDiv.innerHTML = `
-        <span class="text-sm text-gray-300 font-bold">Theme</span>
-        <select onchange="applyTheme(this.value)" class="bg-black/40 border border-white/10 rounded text-xs text-gray-300 px-2 py-1 outline-none">
-            <option value="default">Default (Cyber)</option>
-            <option value="winxp">Windows XP</option>
-        </select>
-    `;
-    themeDiv.querySelector('select').value = localStorage.getItem('omni_theme') || 'default';
-    chainList.appendChild(themeDiv);
 
     const chainToolbar = document.createElement('div');
     chainToolbar.className = 'flex gap-2 mb-2 pb-2 border-b border-white/10 justify-end';
@@ -1253,12 +1247,18 @@ function toggleAllEncoders(select) {
  */
 function resetSettings() {
     if(confirm('Are you sure you want to reset all settings to default?')) {
-        localStorage.removeItem('omni_active_encoders');
-        localStorage.removeItem('omni_visible_tools');
-        localStorage.removeItem('omni_chain_sequence');
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('omni_')) localStorage.removeItem(key);
+        });
         activeEncoders = Object.keys(encoders);
-        visibleTools = { chain: true, hashing: true, decoder: true };
         chainSequence = ['base64', 'reverse', 'rot13', 'hex', 'base64', 'octal', 'binary'];
+        
+        const defaultTheme = 'winxp';
+        applyTheme(defaultTheme);
+        const themeSelect = document.getElementById('theme-select');
+        if(themeSelect) themeSelect.value = defaultTheme;
+        
+        setMode('encode');
         renderSettings();
         saveSettings();
     }
@@ -1509,6 +1509,9 @@ window.addEventListener('DOMContentLoaded', () => {
         inputEl.value = params.get('text');
     }
 
-    applyTheme(localStorage.getItem('omni_theme') || 'default');
+    const currentTheme = localStorage.getItem('omni_theme') || 'winxp';
+    applyTheme(currentTheme);
+    const themeSelect = document.getElementById('theme-select');
+    if(themeSelect) themeSelect.value = currentTheme;
     setMode(currentMode);
 });
