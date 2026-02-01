@@ -1,16 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OmniEncoder</title>
     <meta name="description" content="OmniEncoder - Client-side Encryption and Encoding Tool">
     <meta property="og:title" content="OmniEncoder">
-    <meta property="og:description" content="Client-side Encryption and Encoding Tool. Encode, Decode, Hash, and more directly in your browser.">
+    <meta property="og:description"
+        content="Client-side Encryption and Encoding Tool. Encode, Decode, Hash, and more directly in your browser.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://OmniEncoder.vercel.app/">
     <meta name="theme-color" content="#09090b">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
     <script src="https://cdn.tailwindcss.com/3.4.5"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script>
@@ -52,12 +55,14 @@
     </script>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="antialiased min-h-screen flex flex-col selection:bg-accent-500 selection:text-white">
 
     <div id="progress-container" class="fixed top-0 left-0 w-full h-1 bg-gray-800 z-[60] hidden">
         <div id="progress-bar" class="h-full bg-accent-500 transition-all duration-200" style="width: 0%"></div>
     </div>
-    <div id="heavy-load-warning" class="hidden fixed bottom-20 right-6 bg-yellow-900/90 text-yellow-100 px-4 py-3 rounded shadow-lg border border-yellow-700 z-50 text-xs font-mono max-w-sm backdrop-blur-sm">
+    <div id="heavy-load-warning"
+        class="hidden fixed bottom-20 right-6 bg-yellow-900/90 text-yellow-100 px-4 py-3 rounded shadow-lg border border-yellow-700 z-50 text-xs font-mono max-w-sm backdrop-blur-sm">
         ⚠️ Heavy input detected. Processing slowly to prevent freeze. Try reducing active encoders.
     </div>
 
@@ -65,43 +70,76 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <div class="w-8 h-8 bg-accent-600 rounded flex items-center justify-center text-white">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
                 </div>
                 <span class="font-bold text-lg tracking-tight text-white">OmniEncoder</span>
-            <div class="ml-2 pl-4 border-l border-white/10">
-                <select id="theme-select" onchange="applyTheme(this.value)" class="bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 px-2 py-1 outline-none hover:bg-white/10 transition-colors cursor-pointer focus:border-accent-500">
-                    <option value="default">Cyber</option>
-                    <option value="winxp">WinXP</option>
-                </select>
-            </div>
+                <div class="ml-2 pl-4 border-l border-white/10">
+                    <select id="theme-select" onchange="applyTheme(this.value)"
+                        class="bg-white/5 border border-white/10 rounded text-[10px] text-gray-400 px-2 py-1 outline-none hover:bg-white/10 transition-colors cursor-pointer focus:border-accent-500">
+                        <option value="default">Cyber</option>
+                        <option value="winxp">WinXP</option>
+                    </select>
+                </div>
             </div>
             <div class="flex items-center gap-6">
-                <button onclick="setMode('docs')" class="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10" title="Documentation & Help">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                <button onclick="setMode('docs')"
+                    class="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+                    title="Documentation & Help">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253">
+                        </path>
+                    </svg>
                 </button>
-                <button onclick="copyShareLink()" class="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10" title="Copy API/Share Link">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                <button onclick="copyShareLink()"
+                    class="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+                    title="Copy API/Share Link">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z">
+                        </path>
+                    </svg>
                 </button>
-                <button onclick="toggleSettings()" class="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10" title="Configure Modules">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <button onclick="toggleSettings()"
+                    class="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+                    title="Configure Modules">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                        </path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
                 </button>
-                <span class="px-2 py-1 rounded-md bg-white/5 text-xs font-mono text-gray-500 border border-white/10">v3.0.0</span>
+                <span
+                    class="px-2 py-1 rounded-md bg-white/5 text-xs font-mono text-gray-500 border border-white/10">v3.0.0</span>
             </div>
         </div>
     </nav>
 
     <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-10">
-        
+
         <div class="flex justify-center gap-4">
-            <button id="tab-encode" onclick="setMode('encode')" class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-accent-600/80 backdrop-blur-md text-white shadow-lg shadow-accent-500/20 border border-accent-500/50">Encode Mode</button>
-            <button id="tab-decode" onclick="setMode('decode')" class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10">Decode Mode</button>
-            <button id="tab-auto" onclick="setMode('auto')" class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10">Auto Mode</button>
-            <button id="tab-analyze" onclick="setMode('analyze')" class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10">Analyze</button>
+            <button id="tab-encode" onclick="setMode('encode')"
+                class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-accent-600/80 backdrop-blur-md text-white shadow-lg shadow-accent-500/20 border border-accent-500/50">Encode
+                Mode</button>
+            <button id="tab-decode" onclick="setMode('decode')"
+                class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10">Decode
+                Mode</button>
+            <button id="tab-auto" onclick="setMode('auto')"
+                class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10">Auto
+                Mode</button>
+            <button id="tab-analyze" onclick="setMode('analyze')"
+                class="px-8 py-3 rounded-lg font-bold text-sm transition-all duration-200 bg-white/5 backdrop-blur-md text-gray-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10">Analyze</button>
         </div>
 
         <section id="input-section">
             <div class="flex flex-col sm:flex-row justify-between items-end mb-3 gap-2">
-                <div class="flex items-center flex-wrap gap-y-2"><label for="input-text" class="block text-sm font-semibold text-gray-300 mr-2">Input Data Stream</label></div>
+                <div class="flex items-center flex-wrap gap-y-2"><label for="input-text"
+                        class="block text-sm font-semibold text-gray-300 mr-2">Input Data Stream</label></div>
                 <div class="flex gap-4 text-xs font-mono text-gray-500">
                     <span id="stat-words">0 words</span>
                     <span class="text-gray-700">|</span>
@@ -110,35 +148,55 @@
                     <span id="stat-bytes">0 bytes</span>
                 </div>
             </div>
-            <div class="relative group input-focus-ring rounded-xl border border-white/10 bg-gray-900/30 backdrop-blur-sm shadow-inner transition-all duration-200">
-                <textarea 
-                    id="input-text" 
+            <div
+                class="relative group input-focus-ring rounded-xl border border-white/10 bg-gray-900/30 backdrop-blur-sm shadow-inner transition-all duration-200">
+                <textarea id="input-text"
                     class="w-full bg-transparent p-4 text-gray-100 placeholder-gray-600 outline-none h-32 font-mono text-base resize-y rounded-xl"
-                    placeholder="Type, paste, or drag a text file here..."
-                >The Quantum-Thief_99 escaped @ Midnight!</textarea>
+                    placeholder="Type, paste, or drag a text file here...">The Quantum-Thief_99 escaped @ Midnight!</textarea>
             </div>
         </section>
 
-        <div id="tool-chain" class="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-xl overflow-hidden flex flex-col">
+        <div id="tool-chain"
+            class="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-xl overflow-hidden flex flex-col">
             <div class="px-6 py-4 border-b border-white/10 bg-transparent flex justify-between items-center">
                 <h2 class="font-semibold text-gray-200 flex items-center gap-2">
-                    <svg class="w-4 h-4 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    <svg class="w-4 h-4 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
                     <span id="chain-title">Multi-Layer Chain Encoder</span>
                 </h2>
-                <span id="chain-step-count" class="text-[10px] font-bold text-gray-500 bg-black/40 border border-white/10 px-2 py-1 rounded">7 Steps</span>
+                <span id="chain-step-count"
+                    class="text-[10px] font-bold text-gray-500 bg-black/40 border border-white/10 px-2 py-1 rounded">7
+                    Steps</span>
             </div>
-            
+
             <div class="p-6 flex-grow flex flex-col">
                 <div class="flex flex-wrap gap-2 mb-6" id="chain-visualizer">
                 </div>
 
                 <div class="relative mt-auto">
-                    <div class="absolute top-2 right-2 z-10">
-                            <button onclick="copyToClipboard('chain-result')" class="p-1.5 text-gray-500 hover:text-white bg-black/20 hover:bg-black/40 rounded transition-colors border border-transparent hover:border-white/10" title="Copy to clipboard">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <div class="absolute top-2 right-2 z-10 flex gap-1">
+                        <button onclick="downloadResult()"
+                            class="p-1.5 text-gray-500 hover:text-white bg-black/20 hover:bg-black/40 rounded transition-colors border border-transparent hover:border-white/10"
+                            title="Download result (Ctrl+D)">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                        </button>
+                        <button onclick="copyToClipboard('chain-result')"
+                            class="p-1.5 text-gray-500 hover:text-white bg-black/20 hover:bg-black/40 rounded transition-colors border border-transparent hover:border-white/10"
+                            title="Copy to clipboard (Ctrl+Enter)">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z">
+                                </path>
+                            </svg>
                         </button>
                     </div>
-                    <div class="bg-black/40 rounded-lg border border-white/10 p-4 min-h-[120px] max-h-[200px] overflow-y-auto relative shadow-inner">
+                    <div
+                        class="bg-black/40 rounded-lg border border-white/10 p-4 min-h-[120px] max-h-[200px] overflow-y-auto relative shadow-inner">
                         <div id="chain-result" class="font-mono text-sm text-gray-400 break-all leading-relaxed"></div>
                     </div>
                 </div>
@@ -148,13 +206,24 @@
         <div id="auto-section" class="hidden space-y-6">
             <div class="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-xl p-6">
                 <h2 class="font-semibold text-gray-200 mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    <svg class="w-5 h-5 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z">
+                        </path>
+                    </svg>
                     Auto-Detection Results
                 </h2>
                 <div id="auto-steps" class="space-y-4 mb-6"></div>
                 <div class="bg-black/40 rounded-lg border border-white/10 p-4 relative">
-                     <button onclick="copyToClipboard('auto-result')" class="absolute top-2 right-2 p-1.5 text-gray-500 hover:text-white bg-black/20 hover:bg-black/40 rounded transition-colors" title="Copy"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg></button>
-                    <div id="auto-result" class="font-mono text-sm text-gray-300 break-all whitespace-pre-wrap min-h-[100px]"></div>
+                    <button onclick="copyToClipboard('auto-result')"
+                        class="absolute top-2 right-2 p-1.5 text-gray-500 hover:text-white bg-black/20 hover:bg-black/40 rounded transition-colors"
+                        title="Copy"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z">
+                            </path>
+                        </svg></button>
+                    <div id="auto-result"
+                        class="font-mono text-sm text-gray-300 break-all whitespace-pre-wrap min-h-[100px]"></div>
                 </div>
             </div>
         </div>
@@ -180,25 +249,38 @@
             <div class="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 shadow-xl p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="font-semibold text-gray-200">Hex Dump (UTF-8)</h2>
-                    <button onclick="copyToClipboard('hex-dump')" class="text-xs text-gray-500 hover:text-white transition-colors">Copy Hex</button>
+                    <button onclick="copyToClipboard('hex-dump')"
+                        class="text-xs text-gray-500 hover:text-white transition-colors">Copy Hex</button>
                 </div>
-                <div id="hex-dump" class="font-mono text-xs text-gray-400 bg-black/40 p-4 rounded-lg border border-white/5 h-64 overflow-y-auto whitespace-pre select-text"></div>
+                <div id="hex-dump"
+                    class="font-mono text-xs text-gray-400 bg-black/40 p-4 rounded-lg border border-white/5 h-64 overflow-y-auto whitespace-pre select-text">
+                </div>
             </div>
         </div>
 
-        <div id="best-match-container" class="hidden bg-emerald-900/20 backdrop-blur-md rounded-xl border border-emerald-500/20 shadow-xl overflow-hidden flex-col">
+        <div id="best-match-container"
+            class="hidden bg-emerald-900/20 backdrop-blur-md rounded-xl border border-emerald-500/20 shadow-xl overflow-hidden flex-col">
             <div class="px-6 py-4 border-b border-emerald-500/10 bg-transparent flex justify-between items-center">
                 <h2 class="font-semibold text-emerald-400 flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
                     Best Match: <span id="best-match-name" class="ml-2 font-bold text-white"></span>
                 </h2>
-                <button onclick="copyToClipboard('best-match-result')" class="text-emerald-500 hover:text-emerald-300 transition-colors" title="Copy">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                <button onclick="copyToClipboard('best-match-result')"
+                    class="text-emerald-500 hover:text-emerald-300 transition-colors" title="Copy">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z">
+                        </path>
+                    </svg>
                 </button>
             </div>
             <div class="p-6">
                 <div class="bg-black/40 rounded border border-emerald-500/10 p-4 shadow-inner">
-                    <div id="best-match-result" class="font-mono text-sm text-emerald-100 break-all leading-relaxed"></div>
+                    <div id="best-match-result" class="font-mono text-sm text-emerald-100 break-all leading-relaxed">
+                    </div>
                 </div>
             </div>
         </div>
@@ -206,23 +288,58 @@
         <section id="doc-section" class="hidden space-y-8 animate-in fade-in duration-300">
             <div class="bg-gray-900/60 backdrop-blur-md rounded-xl border border-white/10 p-8 shadow-xl">
                 <h2 class="text-2xl font-bold text-white mb-4">Deep Linking Guide</h2>
-                <p class="text-gray-400 mb-6">You can create links that automatically open this tool with specific settings. This is great for sharing encrypted messages or saving your workspace configuration.</p>
-                
+                <p class="text-gray-400 mb-6">You can create links that automatically open this tool with specific
+                    settings. This is great for sharing encrypted messages or saving your workspace configuration.</p>
+
                 <div class="bg-blue-900/20 border border-blue-500/20 rounded-lg p-4 mb-8">
                     <h4 class="text-blue-400 font-bold text-sm mb-1">Client-Side Only (No CORS Issues)</h4>
-                    <p class="text-gray-400 text-xs">This tool runs entirely in your browser. You can link to it from any website without CORS errors. However, this is a user interface, not a REST API, so you cannot use <code>fetch()</code> to get JSON data from it.</p>
-                    
+                    <p class="text-gray-400 text-xs">This tool runs entirely in your browser. You can link to it from
+                        any website without CORS errors.</p>
+
                     <div class="mt-3 pt-3 border-t border-blue-500/20">
-                        <h4 class="text-blue-400 font-bold text-sm mb-1">Developer Access</h4>
-                        <p class="text-gray-400 text-xs">For testing or automation, the results are exposed globally. Open your browser console (F12) and access <code class="bg-black/40 px-1 rounded text-emerald-400">window.omniResults</code> to get the output as a JSON object.</p>
+                        <h4 class="text-blue-400 font-bold text-sm mb-2">JavaScript API <span
+                                class="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded ml-2">v3.1</span>
+                        </h4>
+                        <p class="text-gray-400 text-xs mb-3">Access <code
+                                class="bg-black/40 px-1 rounded text-emerald-400">window.OmniEncoder</code> in the
+                            browser console:</p>
+                        <div
+                            class="bg-black/60 rounded border border-white/5 p-3 font-mono text-xs text-gray-300 space-y-1 overflow-x-auto">
+                            <div><span class="text-gray-500">// Encode/Decode</span></div>
+                            <div>await OmniEncoder.<span class="text-emerald-400">encode</span>(<span
+                                    class="text-orange-300">'hello'</span>, <span
+                                    class="text-orange-300">'base64'</span>)</div>
+                            <div>await OmniEncoder.<span class="text-emerald-400">decode</span>(<span
+                                    class="text-orange-300">'aGVsbG8='</span>, <span
+                                    class="text-orange-300">'base64'</span>)</div>
+                            <div class="mt-2"><span class="text-gray-500">// Chain multiple encoders</span></div>
+                            <div>await OmniEncoder.<span class="text-emerald-400">chain</span>(<span
+                                    class="text-orange-300">'hello'</span>, [<span
+                                    class="text-orange-300">'base64'</span>, <span
+                                    class="text-orange-300">'hex'</span>])</div>
+                            <div class="mt-2"><span class="text-gray-500">// Auto-detect encoding</span></div>
+                            <div>await OmniEncoder.<span class="text-emerald-400">detect</span>(<span
+                                    class="text-orange-300">'aGVsbG8='</span>)</div>
+                            <div class="mt-2"><span class="text-gray-500">// Hash</span></div>
+                            <div>await OmniEncoder.<span class="text-emerald-400">hash</span>(<span
+                                    class="text-orange-300">'hello'</span>, <span
+                                    class="text-orange-300">'sha256'</span>)</div>
+                            <div class="mt-2"><span class="text-gray-500">// Listen for completion events</span></div>
+                            <div>OmniEncoder.<span class="text-emerald-400">on</span>(<span
+                                    class="text-orange-300">'complete'</span>, (results) => console.log(results))</div>
+                            <div class="mt-2"><span class="text-gray-500">// Get available encoders</span></div>
+                            <div>OmniEncoder.<span class="text-emerald-400">getAvailableEncoders</span>()</div>
+                        </div>
                     </div>
                 </div>
-                
+
                 <div class="space-y-6">
                     <div>
                         <h3 class="text-lg font-semibold text-accent-500 mb-2">How to construct a Link</h3>
                         <div class="bg-black/40 rounded-lg border border-white/10 p-4 font-mono text-sm text-gray-300">
-                            https://OmniEncoder.vercel.app/?<span class="text-emerald-400">param</span>=<span class="text-blue-400">value</span>&<span class="text-emerald-400">param2</span>=<span class="text-blue-400">value2</span>
+                            https://OmniEncoder.vercel.app/?<span class="text-emerald-400">param</span>=<span
+                                class="text-blue-400">value</span>&<span class="text-emerald-400">param2</span>=<span
+                                class="text-blue-400">value2</span>
                         </div>
                     </div>
 
@@ -237,11 +354,14 @@
                                     </tr>
                                     <tr>
                                         <td class="px-4 py-3 font-mono text-emerald-400">mode</td>
-                                        <td class="px-4 py-3">Set to <code class="bg-black/40 px-1 rounded">encode</code> or <code class="bg-black/40 px-1 rounded">decode</code>.</td>
+                                        <td class="px-4 py-3">Set to <code
+                                                class="bg-black/40 px-1 rounded">encode</code> or <code
+                                                class="bg-black/40 px-1 rounded">decode</code>.</td>
                                     </tr>
                                     <tr class="bg-white/5">
                                         <td class="px-4 py-3 font-mono text-emerald-400">encoders</td>
-                                        <td class="px-4 py-3">Comma-separated list of tools to turn on (e.g., <code class="bg-black/40 px-1 rounded">base64,hex</code>).</td>
+                                        <td class="px-4 py-3">Comma-separated list of tools to turn on (e.g., <code
+                                                class="bg-black/40 px-1 rounded">base64,hex</code>).</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -249,10 +369,13 @@
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-semibold text-accent-500 mb-2">Automated Extraction (Node.js Example)</h3>
-                        <p class="text-gray-400 text-sm mb-3">To automate this programmatically, you can use a headless browser like Puppeteer. The tool emits an event when processing is finished.</p>
-                        <div class="bg-black/40 rounded-lg border border-white/10 p-4 font-mono text-xs text-gray-300 overflow-x-auto">
-<pre class="whitespace-pre">const puppeteer = require('puppeteer');
+                        <h3 class="text-lg font-semibold text-accent-500 mb-2">Automated Extraction (Node.js Example)
+                        </h3>
+                        <p class="text-gray-400 text-sm mb-3">To automate this programmatically, you can use a headless
+                            browser like Puppeteer. The tool emits an event when processing is finished.</p>
+                        <div
+                            class="bg-black/40 rounded-lg border border-white/10 p-4 font-mono text-xs text-gray-300 overflow-x-auto">
+                            <pre class="whitespace-pre">const puppeteer = require('puppeteer');
 
 (async () => {
   const browser = await puppeteer.launch();
@@ -292,25 +415,40 @@
     <footer class="border-t border-white/5 bg-gray-950/80 backdrop-blur-md mt-auto">
         <div class="max-w-7xl mx-auto px-4 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-2">
-                 <div class="w-4 h-4 bg-white/10 rounded flex items-center justify-center text-gray-500">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <div class="w-4 h-4 bg-white/10 rounded flex items-center justify-center text-gray-500">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
                 </div>
                 <p class="text-xs text-gray-500">© 2026 OmniEncoder</p>
+            </div>
+            <div class="text-[10px] text-gray-600 font-mono flex gap-4">
+                <span>Ctrl+Enter: Copy</span>
+                <span>Ctrl+D: Download</span>
+                <span>Ctrl+/: Help</span>
             </div>
         </div>
     </footer>
 
-    <div id="toast" class="fixed bottom-6 right-6 bg-white/90 backdrop-blur text-gray-900 px-4 py-3 rounded shadow-lg transform translate-y-24 opacity-0 transition-all duration-300 z-[110] flex items-center text-sm font-medium border border-white/20">
-        <svg class="w-4 h-4 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+    <div id="toast"
+        class="fixed bottom-6 right-6 bg-white/90 backdrop-blur text-gray-900 px-4 py-3 rounded shadow-lg transform translate-y-24 opacity-0 transition-all duration-300 z-[110] flex items-center text-sm font-medium border border-white/20">
+        <svg class="w-4 h-4 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
         Copied to clipboard
     </div>
 
     <div id="settings-modal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-4">
-        <div class="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div
+            class="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div class="p-6 border-b border-white/10 flex justify-between items-center">
                 <h2 class="text-xl font-bold text-white">Configure Modules</h2>
                 <button onclick="toggleSettings()" class="text-gray-500 hover:text-white">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
                 </button>
             </div>
             <div class="p-6 overflow-y-auto space-y-8">
@@ -321,65 +459,114 @@
                         <div id="chain-editor-list" class="space-y-2 mb-4">
                         </div>
                         <div class="flex gap-2">
-                            <select id="chain-add-select" class="bg-gray-800/50 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-accent-500 focus:border-accent-500 block w-full p-2.5">
+                            <select id="chain-add-select"
+                                class="bg-gray-800/50 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-accent-500 focus:border-accent-500 block w-full p-2.5">
                             </select>
-                            <button onclick="addChainStep()" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors border border-white/10">Add</button>
+                            <button onclick="addChainStep()"
+                                class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-colors border border-white/10">Add</button>
                         </div>
                     </div>
                 </section>
 
+                <section>
+                    <h3 class="text-sm font-bold text-accent-500 mb-4">Options</h3>
+                    <div class="bg-black/40 border border-white/10 rounded-lg p-4 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-200 text-sm font-medium">Best Match Detection</p>
+                                <p class="text-gray-500 text-xs">Auto-detect encoding in Decode mode</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="best-match-toggle" class="sr-only peer" checked
+                                    onchange="toggleBestMatch()">
+                                <div
+                                    class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-500">
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </section>
                 <section>
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-sm font-bold text-accent-500">Active Modules</h3>
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3" id="settings-encoders-grid">
                     </div>
-                </section>
             </div>
             <div class="p-6 border-t border-white/10 bg-transparent flex justify-between items-center">
-                <button onclick="resetSettings()" class="text-sm text-red-400 hover:text-red-300 font-medium transition-colors">Reset Defaults</button>
-                <button onclick="toggleSettings()" class="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors">Done</button>
+                <div class="flex gap-2">
+                    <button onclick="resetSettings()"
+                        class="text-sm text-red-400 hover:text-red-300 font-medium transition-colors">Reset
+                        Defaults</button>
+                    <button onclick="exportSettings()"
+                        class="text-sm text-gray-400 hover:text-white font-medium transition-colors">Export</button>
+                    <button onclick="importSettings()"
+                        class="text-sm text-gray-400 hover:text-white font-medium transition-colors">Import</button>
+                </div>
+                <button onclick="toggleSettings()"
+                    class="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white rounded-lg text-sm font-medium transition-colors">Done</button>
             </div>
         </div>
     </div>
 
     <div id="quick-tool-modal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-4">
-        <div class="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col">
+        <div
+            class="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col">
             <div class="p-6 border-b border-white/10 flex justify-between items-center">
                 <h2 id="quick-tool-title" class="text-xl font-bold text-white">Module</h2>
                 <button onclick="closeQuickTool()" class="text-gray-500 hover:text-white">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
+                    </svg>
                 </button>
             </div>
             <div class="p-6 space-y-4">
                 <div>
                     <label for="quick-tool-input" class="block text-sm font-semibold text-gray-300 mb-2">Input</label>
-                    <textarea id="quick-tool-input" class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none h-32 resize-none" placeholder="Type here..."></textarea>
+                    <textarea id="quick-tool-input"
+                        class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none h-32 resize-none"
+                        placeholder="Type here..."></textarea>
                 </div>
                 <div id="quick-tool-verify-section" class="hidden">
                     <label class="block text-sm font-semibold text-gray-300 mb-2">Original Text to Verify</label>
-                    <textarea id="quick-tool-verify-input" class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none h-24 resize-none" placeholder="Enter text to hash and compare..."></textarea>
+                    <textarea id="quick-tool-verify-input"
+                        class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none h-24 resize-none"
+                        placeholder="Enter text to hash and compare..."></textarea>
                 </div>
                 <div id="quick-tool-password-section" class="hidden">
-                    <label for="quick-tool-password" class="block text-sm font-semibold text-gray-300 mb-2">Encryption Password</label>
-                    <input type="password" id="quick-tool-password" class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none transition-colors" placeholder="Enter password (default: OmniEncoder)">
+                    <label for="quick-tool-password" class="block text-sm font-semibold text-gray-300 mb-2">Encryption
+                        Password</label>
+                    <input type="password" id="quick-tool-password"
+                        class="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-gray-300 font-mono text-sm focus:border-accent-500 outline-none transition-colors"
+                        placeholder="Enter password (default: OmniEncoder)">
                 </div>
                 <div>
                     <div class="flex justify-between items-center mb-2">
                         <label class="block text-sm font-semibold text-accent-500">Output</label>
                         <div class="flex gap-3">
-                            <button onclick="toggleDiffView()" id="btn-diff-toggle" class="text-xs text-gray-500 hover:text-white flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                            <button onclick="toggleDiffView()" id="btn-diff-toggle"
+                                class="text-xs text-gray-500 hover:text-white flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                                </svg>
                                 Diff View
                             </button>
-                            <button onclick="copyToClipboard('quick-tool-output')" class="text-xs text-gray-500 hover:text-white flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            <button onclick="copyToClipboard('quick-tool-output')"
+                                class="text-xs text-gray-500 hover:text-white flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z">
+                                    </path>
+                                </svg>
                                 Copy
                             </button>
                         </div>
                     </div>
                     <div class="bg-black/40 border border-white/10 rounded-lg p-3 h-32 overflow-y-auto">
-                        <div id="quick-tool-output" class="font-mono text-sm text-gray-300 break-all whitespace-pre-wrap"></div>
+                        <div id="quick-tool-output"
+                            class="font-mono text-sm text-gray-300 break-all whitespace-pre-wrap"></div>
                     </div>
                 </div>
             </div>
@@ -388,4 +575,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>
