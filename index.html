@@ -252,7 +252,8 @@
                             class="w-full bg-gray-800/50 border border-white/10 text-gray-300 text-sm rounded-lg focus:ring-accent-500 focus:border-accent-500 p-2.5">
                             <option value="1">Level 1 - Byte Array</option>
                             <option value="2">Level 2 - XOR Encrypted</option>
-                            <option value="3" selected>Level 3 - Disguised (AI-Resistant)</option>
+                            <option value="3">Level 3 - Disguised </option>
+                            <option value="4" selected>Level 4 - Armored (PRNG + Junk Ops)</option>
                         </select>
                     </div>
                     <div class="flex items-end">
@@ -264,9 +265,9 @@
                 </div>
 
                 <div class="bg-blue-900/20 border border-blue-500/20 rounded-lg p-3 mb-4 text-xs text-gray-400">
-                    <span class="text-blue-400 font-bold">Executor Scripts:</span> Level 3 uses a Custom Virtual Machine
-                    (VM) with randomized opcodes to execute encrypted bytecode, making logic analysis extremely
-                    difficult.
+                    <span class="text-blue-400 font-bold">Executor Scripts:</span> Level 3 uses randomized VM opcodes.
+                    <span class="text-emerald-400 font-bold">Level 4</span> adds PRNG key generation (no key table),
+                    junk opcodes to waste reverser time, and hidden loadstring via getfenv.
                 </div>
 
                 <div class="relative">
@@ -283,7 +284,7 @@
                     </div>
                     <div id="obfuscate-output"
                         class="font-mono text-xs text-emerald-400 bg-black/60 p-4 rounded-lg border border-white/5 h-64 overflow-y-auto whitespace-pre select-text">
-                        -- Paste your Lua code above and click Obfuscate
+                        -- Paste your code above and click Obfuscate
                     </div>
                 </div>
             </div>

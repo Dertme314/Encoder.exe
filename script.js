@@ -2054,7 +2054,115 @@ else
 ${v[1]}=${v[1]}+1
 end
 end
-loadstring(${v[2]})()`;
+getfenv()[${v[6]}(108,111,97,100,115,116,114,105,110,103)](${v[2]})()`;
+}
+
+/**
+ * Level 4: Advanced Obfuscation - Dynamic Key Gen + Junk Opcodes + Hidden loadstring
+ * - Uses PRNG seeded with single value to generate key on the fly (no key table)
+ * - Injects fake opcodes (NOP, FAKE_MATH, FAKE_LOGIC) into bytecode
+ * - Hides loadstring using getfenv + string.char
+ */
+function obfuscateLuaLevel4(code) {
+    // 1. Prepare Data
+    const bytes = strToLuaByteArray(code);
+
+    // 2. PRNG Seed (single number instead of key table)
+    const SEED = Math.floor(Math.random() * 2147483647) + 1;
+
+    // 3. Define VM Ops with Junk Ops
+    const ops = ['OP_START', 'OP_DEC_CHAR', 'OP_END', 'OP_NOP', 'OP_FAKE_MATH', 'OP_FAKE_LOGIC'];
+    const OP_MAP = {};
+    const USED = [];
+    ops.forEach(op => {
+        let c; do { c = Math.floor(Math.random() * 250) + 1; } while (USED.includes(c));
+        OP_MAP[op] = c;
+        USED.push(c);
+    });
+
+    // 4. Generate Bytecode with Junk Instructions
+    const BYTECODE = [];
+    BYTECODE.push(OP_MAP['OP_START']);
+
+    // PRNG function using BigInt for precision (matches Lua implementation exactly)
+    let prngState = BigInt(SEED);
+    function nextKey() {
+        prngState = (prngState * 1103515245n + 12345n) % 2147483648n;
+        return Number(prngState % 256n);
+    }
+
+    for (let i = 0; i < bytes.length; i++) {
+        // Random chance to insert junk ops (about 15% of the time)
+        if (Math.random() < 0.15) {
+            const junkOps = ['OP_NOP', 'OP_FAKE_MATH', 'OP_FAKE_LOGIC'];
+            const junk = junkOps[Math.floor(Math.random() * junkOps.length)];
+            BYTECODE.push(OP_MAP[junk]);
+            // Add random operand for fake ops
+            BYTECODE.push(Math.floor(Math.random() * 255));
+        }
+
+        // Encrypt byte using PRNG-generated key
+        const key = nextKey();
+        const encByte = bytes[i] ^ key;
+        BYTECODE.push(OP_MAP['OP_DEC_CHAR']);
+        BYTECODE.push(encByte);
+    }
+    BYTECODE.push(OP_MAP['OP_END']);
+
+    // 5. Generate Variable Names
+    const v = {};
+    for (let i = 0; i < 25; i++) v[i] = generateVarName();
+
+    // 6. Generate Decoy Code
+    const decoys = [
+        `local ${generateVarName()} = "MIT"`,
+        `local ${generateVarName()} = {verified=true}`,
+        `local ${generateVarName()} = function() return nil end`,
+    ];
+    const decoyCode = decoys[Math.floor(Math.random() * decoys.length)];
+
+    // 7. Build Advanced VM Interpreter
+    // v[0]: bytecode, v[1]: pc, v[2]: result, v[3]: op, v[4]: prng_state
+    // v[5]: bit32.bxor, v[6]: string.char, v[7]: seed, v[8]: junk_accum
+    return `${decoyCode}
+local ${v[0]}={${BYTECODE.join(',')}}
+local ${v[7]}=${SEED}
+local ${v[1]}=1
+local ${v[2]}=""
+local ${v[4]}=${v[7]}
+local ${v[5]}=bit32.bxor
+local ${v[6]}=string.char
+local ${v[8]}=0
+
+local function ${v[9]}()
+${v[4]}=(${v[4]}*1103515245+12345)%2147483648
+return ${v[4]}%256
+end
+
+while ${v[1]}<=#${v[0]} do
+local ${v[3]}=${v[0]}[${v[1]}]
+if ${v[3]}==${OP_MAP['OP_START']} then
+${v[1]}=${v[1]}+1
+elseif ${v[3]}==${OP_MAP['OP_DEC_CHAR']} then
+local e=${v[0]}[${v[1]}+1]
+local k=${v[9]}()
+${v[2]}=${v[2]}..${v[6]}(${v[5]}(e,k))
+${v[1]}=${v[1]}+2
+elseif ${v[3]}==${OP_MAP['OP_NOP']} then
+${v[1]}=${v[1]}+2
+elseif ${v[3]}==${OP_MAP['OP_FAKE_MATH']} then
+${v[8]}=${v[8]}+${v[0]}[${v[1]}+1]
+${v[1]}=${v[1]}+2
+elseif ${v[3]}==${OP_MAP['OP_FAKE_LOGIC']} then
+if ${v[8]}>999999 then ${v[8]}=0 end
+${v[1]}=${v[1]}+2
+elseif ${v[3]}==${OP_MAP['OP_END']} then
+break
+else
+${v[1]}=${v[1]}+1
+end
+end
+getfenv()[${v[6]}(108,111,97,100,115,116,114,105,110,103)](${v[2]})()`;
 }
 
 /**
@@ -2477,7 +2585,8 @@ function processObfuscate() {
             switch (level) {
                 case 1: result = obfuscateLuaLevel1(code); break;
                 case 2: result = obfuscateLuaLevel2(code); break;
-                case 3: default: result = obfuscateLuaLevel3(code); break;
+                case 3: result = obfuscateLuaLevel3(code); break;
+                case 4: default: result = obfuscateLuaLevel4(code); break;
             }
         } else if (lang === 'python') {
             result = obfuscatePython(code);
